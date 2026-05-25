@@ -258,18 +258,7 @@
                             기술적 지표가 강한 상승 전환 신호를 보내고 있으며, 뉴스 미디어 긍정 기류가 결합하여 매수 확률이 높게 산출되었습니다.
                         </p>
 
-                        <!-- Live Action Simulator -->
-                        <div class="trade-actions">
-                            <div class="quantity-selector">
-                                <button class="btn-qty" id="qty-minus">-</button>
-                                <input type="number" id="trade-qty" value="10" min="1">
-                                <button class="btn-qty" id="qty-plus">+</button>
-                            </div>
-                            <div class="trade-buttons">
-                                <button class="btn-trade buy" id="action-buy">즉시 매수</button>
-                                <button class="btn-trade sell" id="action-sell">즉시 매도</button>
-                            </div>
-                        </div>
+
                     </div>
 
                     <!-- Custom Indicator Weights Setup -->
@@ -352,25 +341,21 @@
                 </div>
             </div>
 
-            <!-- Mock Portfolio Simulator Card (Placed at the bottom of the main content) -->
+            <!-- Actual Portfolio Assets Card (Placed at the bottom of the main content) -->
             <div class="portfolio-card card">
                 <div class="card-header">
-                    <h3><i class="fa-solid fa-wallet"></i> 모의 투자 포트폴리오 (계좌 현황)</h3>
-                    <button class="btn-reset" id="reset-portfolio" title="초기화"><i class="fa-solid fa-rotate-left"></i> 초기화</button>
+                    <h3><i class="fa-solid fa-wallet"></i> 실제 보유 자산 포트폴리오 (자산 현황)</h3>
+                    <button class="btn-reset" id="reset-portfolio" title="보유 수량 초기화"><i class="fa-solid fa-rotate-left"></i> 초기화</button>
                 </div>
                 
                 <div class="portfolio-summary-row">
                     <div class="summary-item">
-                        <span class="summary-label">가용 현금</span>
-                        <span class="summary-value text-gold" id="portfolio-cash">$100,000.00 <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩138,000,000</span></span>
+                        <span class="summary-label">총 보유 종목 수</span>
+                        <span class="summary-value text-gold" id="portfolio-holdings-count">0개 종목</span>
                     </div>
                     <div class="summary-item">
-                        <span class="summary-label">보유 주식 평가액</span>
-                        <span class="summary-value" id="portfolio-holding-val">$0.00 <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩0</span></span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-label">총 자산 (현금+주식)</span>
-                        <span class="summary-value text-green" id="portfolio-total">$100,000.00 <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩138,000,000</span></span>
+                        <span class="summary-label">총 자산 (주식 평가액 합계)</span>
+                        <span class="summary-value text-green" id="portfolio-total">$0.00 <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩0</span></span>
                     </div>
                 </div>
 

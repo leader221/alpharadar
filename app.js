@@ -20,7 +20,7 @@ let marketFearGreed = 62; // Greed
 
 // Mock Portfolio State
 let portfolio = {
-    cash: 100000.00,
+    cash: 0,
     holdings: {
         QQQ: 0,
         SPY: 0,
@@ -304,6 +304,24 @@ function injectTickerTab(key, meta) {
     parent.appendChild(btn);
 }
 
+function saveHoldingsToStorage() {
+    localStorage.setItem('alpharadar_portfolio_holdings', JSON.stringify(portfolio.holdings));
+}
+
+function loadHoldingsFromStorage() {
+    const saved = localStorage.getItem('alpharadar_portfolio_holdings');
+    if (saved) {
+        try {
+            const holdings = JSON.parse(saved);
+            Object.keys(holdings).forEach(ticker => {
+                portfolio.holdings[ticker] = holdings[ticker];
+            });
+        } catch (e) {
+            console.warn('[AlphaRadar] Failed to parse saved holdings:', e.message);
+        }
+    }
+}
+
 // Handler to safely remove a user-added custom ticker or default ticker
 function removeTicker(symbol) {
     if (!confirm(`${tickerMetadata[symbol]?.name || symbol} 종목을 제거하시겠습니까?`)) {
@@ -366,6 +384,7 @@ function removeTicker(symbol) {
     }
     
     // 6. Refresh UI elements
+    saveHoldingsToStorage();
     updateDashboardUI();
     updatePortfolioUI();
     showToast(`${symbol} 종목이 제거되었습니다.`);
@@ -1179,10 +1198,6 @@ function updateFearGreedUI() {
 
 // Portfolio Simulation Logic
 function updatePortfolioUI() {
-    const cashUSD = portfolio.cash;
-    const cashKRW = cashUSD * USDKRW;
-    document.getElementById('portfolio-cash').innerHTML = `$${cashUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(cashKRW).toLocaleString()}</span>`;
-    
     let holdingsValue = 0;
     const tableBody = document.getElementById('portfolio-holdings-table-body');
     if (tableBody) {
@@ -1223,11 +1238,32 @@ function updatePortfolioUI() {
         });
     }
     
-    const totalValue = portfolio.cash + holdingsValue;
+    // Calculate values
+    const activeHoldingsCount = Object.keys(portfolio.holdings).filter(ticker => portfolio.holdings[ticker] > 0).length;
     const holdingsValueKRW = holdingsValue * USDKRW;
-    const totalValueKRW = totalValue * USDKRW;
-    document.getElementById('portfolio-holding-val').innerHTML = `$${holdingsValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(holdingsValueKRW).toLocaleString()}</span>`;
-    document.getElementById('portfolio-total').innerHTML = `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(totalValueKRW).toLocaleString()}</span>`;
+    
+    // Update DOM
+    const countEl = document.getElementById('portfolio-holdings-count');
+    if (countEl) {
+        countEl.innerText = `${activeHoldingsCount}개 종목`;
+    }
+    
+    const cashEl = document.getElementById('portfolio-cash');
+    if (cashEl) {
+        const cashUSD = portfolio.cash;
+        const cashKRW = cashUSD * USDKRW;
+        cashEl.innerHTML = `$${cashUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(cashKRW).toLocaleString()}</span>`;
+    }
+    
+    const holdingValEl = document.getElementById('portfolio-holding-val');
+    if (holdingValEl) {
+        holdingValEl.innerHTML = `$${holdingsValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(holdingsValueKRW).toLocaleString()}</span>`;
+    }
+    
+    const totalEl = document.getElementById('portfolio-total');
+    if (totalEl) {
+        totalEl.innerHTML = `$${holdingsValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(holdingsValueKRW).toLocaleString()}</span>`;
+    }
 }
 
 // Show Toast Notifications
@@ -1421,6 +1457,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5. Load custom tickers from localStorage
     initCustomTickers();
     
+    // Load holdings from storage
+    loadHoldingsFromStorage();
+    
     // Generate base mock stock records
     initHistoricalData();
     // Generate initial agent flow data
@@ -1481,86 +1520,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Portfolio buying / selling buttons
-    const qtyInput = document.getElementById('trade-qty');
-    document.getElementById('qty-minus').addEventListener('click', () => {
-        const val = Math.max(1, parseInt(qtyInput.value) - 10);
-        qtyInput.value = val;
-    });
-    document.getElementById('qty-plus').addEventListener('click', () => {
-        const val = parseInt(qtyInput.value) + 10;
-        qtyInput.value = val;
-    });
-    
-    // Execute simulated Buy trade
-    document.getElementById('action-buy').addEventListener('click', () => {
-        const qty = parseInt(qtyInput.value);
-        if (isNaN(qty) || qty <= 0) return;
-        
-        const currentClose = historicalData[currentTicker][historicalData[currentTicker].length - 1].close;
-        const meta = tickerMetadata[currentTicker];
-        let totalCostNative = qty * currentClose;
-        let totalCostUSD = totalCostNative;
-        if (meta.currency === 'KRW') {
-            totalCostUSD = totalCostNative / USDKRW;
-        }
-        
-        if (portfolio.cash >= totalCostUSD) {
-            portfolio.cash -= totalCostUSD;
-            portfolio.holdings[currentTicker] += qty;
-            updatePortfolioUI();
-            showToast(`${currentTicker} ${qty}주 매수 완료 (${formatMoney(totalCostNative, meta.currency)})`);
-        } else {
-            showToast(`실패: 매수 잔액이 부족합니다.`);
-        }
-    });
-    
-    // Execute simulated Sell trade
-    document.getElementById('action-sell').addEventListener('click', () => {
-        const qty = parseInt(qtyInput.value);
-        if (isNaN(qty) || qty <= 0) return;
-        
-        const holdingsShares = portfolio.holdings[currentTicker];
-        if (holdingsShares >= qty) {
-            const currentClose = historicalData[currentTicker][historicalData[currentTicker].length - 1].close;
-            const meta = tickerMetadata[currentTicker];
-            let totalRevenueNative = qty * currentClose;
-            let totalRevenueUSD = totalRevenueNative;
-            if (meta.currency === 'KRW') {
-                totalRevenueUSD = totalRevenueNative / USDKRW;
-            }
-            
-            portfolio.cash += totalRevenueUSD;
-            portfolio.holdings[currentTicker] -= qty;
-            updatePortfolioUI();
-            showToast(`${currentTicker} ${qty}주 매도 완료 (${formatMoney(totalRevenueNative, meta.currency)})`);
-        } else {
-            showToast(`실패: 매도하려는 주식 보유량이 부족합니다.`);
-        }
-    });
-    
     // Portfolio Reset
     document.getElementById('reset-portfolio').addEventListener('click', () => {
-        portfolio.cash = 100000.00;
+        portfolio.cash = 0;
         Object.keys(portfolio.holdings).forEach(ticker => {
             portfolio.holdings[ticker] = 0;
         });
+        saveHoldingsToStorage();
         updatePortfolioUI();
-        showToast('모의 포트폴리오가 초기화되었습니다.');
+        showToast('보유 수량이 초기화되었습니다.');
     });
     
     // Direct Inline Holdings Quantity Editing
     const tableBodyElement = document.getElementById('portfolio-holdings-table-body');
     if (tableBodyElement) {
-        tableBodyElement.addEventListener('change', (e) => {
+        // Immediate update on typing (input event)
+        tableBodyElement.addEventListener('input', (e) => {
             if (e.target.classList.contains('input-holding-shares')) {
                 const ticker = e.target.getAttribute('data-ticker');
                 let newQty = parseInt(e.target.value);
                 if (isNaN(newQty) || newQty < 0) newQty = 0;
                 
                 portfolio.holdings[ticker] = newQty;
+                saveHoldingsToStorage();
                 updatePortfolioUI();
-                showToast(`${tickerMetadata[ticker].name} 보유량이 ${newQty}주로 직접 수정되었습니다.`);
+            }
+        });
+
+        // Toast feedback on finish (change event)
+        tableBodyElement.addEventListener('change', (e) => {
+            if (e.target.classList.contains('input-holding-shares')) {
+                const ticker = e.target.getAttribute('data-ticker');
+                let newQty = parseInt(e.target.value);
+                if (isNaN(newQty) || newQty < 0) newQty = 0;
+                
+                showToast(`${tickerMetadata[ticker].name} 보유량이 ${newQty}주로 저장되었습니다.`);
             }
         });
         
