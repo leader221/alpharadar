@@ -503,7 +503,7 @@ function calculateMACD(prices) {
 }
 
 // Compute all Technical metrics for rendering
-function analyzeTechnicals(ticker) {
+function analyzeTechnicals(ticker, idx = null) {
     const data = historicalData[ticker];
     const prices = data.map(d => d.close);
     const volumes = data.map(d => d.volume);
@@ -514,7 +514,9 @@ function analyzeTechnicals(ticker) {
     const rsi = calculateRSI(prices, 14);
     const macdData = calculateMACD(prices);
     
-    const idx = prices.length - 1;
+    if (idx === null || idx < 0) {
+        idx = prices.length - 1;
+    }
     const currentPrice = prices[idx];
     
     // 1. SMA Trend Verdict
@@ -1639,6 +1641,164 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // AI Algorithm Weight Optimization & Backtester Logic
+    const btnRunOptimizer = document.getElementById('btn-run-optimizer');
+    
+    btnRunOptimizer.addEventListener('click', () => {
+        runAlgorithmOptimization();
+    });
+    
+    async function runAlgorithmOptimization() {
+        const data = historicalData[currentTicker];
+        if (!data || data.length < 40) {
+            showToast('실패: 최적화를 실행하기 위해 최소 40영업일 이상의 데이터가 필요합니다.');
+            return;
+        }
+        
+        const btn = document.getElementById('btn-run-optimizer');
+        btn.classList.add('loading');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 분석 중...';
+        showToast(`${tickerMetadata[currentTicker].name}에 대한 AI 백테스트 및 최적화 실행 중...`);
+        
+        // Wait 500ms to allow UI render of loading spinner
+        setTimeout(() => {
+            try {
+                const totalPoints = data.length;
+                const evalPoints = [];
+                const step = 20; // 20 trading days ~ 1 month
+                const warmUpPeriod = totalPoints > 220 ? 200 : 30;
+                const startIdx = Math.max(warmUpPeriod, totalPoints - 250);
+                const endIdx = totalPoints - 21; // Save 20 days for subsequent return calculation
+                
+                for (let i = startIdx; i <= endIdx; i += step) {
+                    const return1m = (data[i + 20].close - data[i].close) / data[i].close;
+                    
+                    // Precompute technical indicators scores at index i
+                    const analysis = analyzeTechnicals(currentTicker, i);
+                    
+                    const scoreMA = analysis.ma.score;
+                    const scoreTech = (analysis.rsi.score + analysis.vol.score) / 2;
+                    const scoreNews = analysis.newsScore;
+                    const scoreFG = analysis.fgScore;
+                    
+                    // Ideal score calculation (R_i return percentage)
+                    const pct = return1m * 100;
+                    const ideal = Math.min(Math.max(Math.round(50 + pct * 5.0), 0), 100);
+                    
+                    evalPoints.push({
+                        ma: scoreMA,
+                        tech: scoreTech,
+                        news: scoreNews,
+                        fg: scoreFG,
+                        ideal: ideal,
+                        pct: pct
+                    });
+                }
+                
+                if (evalPoints.length === 0) {
+                    throw new Error('평가할 수 있는 백테스트 구간이 부족합니다.');
+                }
+                
+                // 1. Calculate current MAE before optimization
+                let currentErrorSum = 0;
+                let currentCorrect = 0;
+                evalPoints.forEach(pt => {
+                    const currentCalculated = (weights.ma * pt.ma + weights.tech * pt.tech + weights.news * pt.news + weights.fg * pt.fg) / 100;
+                    currentErrorSum += Math.abs(currentCalculated - pt.ideal);
+                    
+                    // Hit rate check:
+                    const isCalculatedPositive = currentCalculated > 53;
+                    const isCalculatedNegative = currentCalculated < 47;
+                    const isCalculatedNeutral = !isCalculatedPositive && !isCalculatedNegative;
+                    
+                    const isReturnPositive = pt.pct > 0.5;
+                    const isReturnNegative = pt.pct < -0.5;
+                    const isReturnNeutral = pt.pct >= -0.5 && pt.pct <= 0.5;
+                    
+                    if ((isCalculatedPositive && isReturnPositive) || 
+                        (isCalculatedNegative && isReturnNegative) || 
+                        (isCalculatedNeutral && isReturnNeutral)) {
+                        currentCorrect++;
+                    }
+                });
+                const currentMAE = currentErrorSum / evalPoints.length;
+                
+                // 2. Perform Grid Search (1,771 iterations)
+                let bestMAE = Infinity;
+                let bestW = { ma: 40, tech: 25, news: 20, fg: 15 };
+                
+                for (let w_ma = 0; w_ma <= 100; w_ma += 5) {
+                    for (let w_tech = 0; w_tech <= 100 - w_ma; w_tech += 5) {
+                        for (let w_news = 0; w_news <= 100 - w_ma - w_tech; w_news += 5) {
+                            const w_fg = 100 - w_ma - w_tech - w_news;
+                            
+                            let errorSum = 0;
+                            evalPoints.forEach(pt => {
+                                const calculated = (w_ma * pt.ma + w_tech * pt.tech + w_news * pt.news + w_fg * pt.fg) / 100;
+                                errorSum += Math.abs(calculated - pt.ideal);
+                            });
+                            const mae = errorSum / evalPoints.length;
+                            
+                            if (mae < bestMAE) {
+                                bestMAE = mae;
+                                bestW = { ma: w_ma, tech: w_tech, news: w_news, fg: w_fg };
+                            }
+                        }
+                    }
+                }
+                
+                // 3. Recalculate hit rate/accuracy with optimized weights
+                let optimizedCorrect = 0;
+                evalPoints.forEach(pt => {
+                    const optCalculated = (bestW.ma * pt.ma + bestW.tech * pt.tech + bestW.news * pt.news + bestW.fg * pt.fg) / 100;
+                    const isCalculatedPositive = optCalculated > 53;
+                    const isCalculatedNegative = optCalculated < 47;
+                    const isCalculatedNeutral = !isCalculatedPositive && !isCalculatedNegative;
+                    
+                    const isReturnPositive = pt.pct > 0.5;
+                    const isReturnNegative = pt.pct < -0.5;
+                    const isReturnNeutral = pt.pct >= -0.5 && pt.pct <= 0.5;
+                    
+                    if ((isCalculatedPositive && isReturnPositive) || 
+                        (isCalculatedNegative && isReturnNegative) || 
+                        (isCalculatedNeutral && isReturnNeutral)) {
+                        optimizedCorrect++;
+                    }
+                });
+                const optimizedAccuracy = (optimizedCorrect / evalPoints.length) * 100;
+                
+                // 4. Update UI Stats panel
+                document.getElementById('opt-val-mae').innerHTML = `${bestMAE.toFixed(1)} <span style="font-size: 10px; color: var(--text-dark);">(이전: ${currentMAE.toFixed(1)})</span>`;
+                document.getElementById('opt-val-accuracy').innerText = `${optimizedAccuracy.toFixed(1)}%`;
+                document.getElementById('opt-val-proposal').innerText = `이동평균 ${bestW.ma}%, 보조 ${bestW.tech}%, 뉴스 ${bestW.news}%, 공포 ${bestW.fg}%`;
+                
+                // 5. Apply the optimized weights to global state & sliders
+                weights = bestW;
+                
+                document.getElementById('slider-w-ma').value = bestW.ma;
+                document.getElementById('val-w-ma').innerText = `${bestW.ma}%`;
+                document.getElementById('slider-w-tech').value = bestW.tech;
+                document.getElementById('val-w-tech').innerText = `${bestW.tech}%`;
+                document.getElementById('slider-w-news').value = bestW.news;
+                document.getElementById('val-w-news').innerText = `${bestW.news}%`;
+                document.getElementById('slider-w-fg').value = bestW.fg;
+                document.getElementById('val-w-fg').innerText = `${bestW.fg}%`;
+                
+                // 6. Refresh active dashboard components
+                updateDashboardUI();
+                
+                showToast(`알고리즘 최적화 완료! 오차가 ${currentMAE.toFixed(1)}에서 ${bestMAE.toFixed(1)}로 감소했습니다.`);
+                
+            } catch (err) {
+                console.error('[AlphaRadar] Optimization failed:', err.message);
+                showToast(`최적화 오류: ${err.message}`);
+            } finally {
+                btn.classList.remove('loading');
+                btn.innerHTML = '<i class="fa-solid fa-play"></i> 최적화 실행';
+            }
+        }, 500);
+    }
+
     // Initialize Dashboard UI & Fear & Greed Elements
     updateFearGreedUI();
     updateDashboardUI();

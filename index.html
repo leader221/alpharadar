@@ -411,6 +411,31 @@
                         </div>
                     </div>
 
+                    <!-- AI Backtest & Weight Optimizer Card -->
+                    <div class="optimizer-card card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-brain"></i> AI 알고리즘 최적화 (Backtest)</h3>
+                            <button class="btn-opt-run" id="btn-run-optimizer"><i class="fa-solid fa-play"></i> 최적화 실행</button>
+                        </div>
+                        <p class="optimizer-desc">
+                            지난 1년간의 30일(20영업일) 주가 변동을 추적하여, 과거 매수 확률 점수의 예측 오차를 최소화하는 가중치 조합을 산출합니다.
+                        </p>
+                        <div class="optimizer-stats">
+                            <div class="opt-stat-row">
+                                <span class="opt-stat-label">예측 평균 오차 (MAE)</span>
+                                <span class="opt-stat-value font-mono text-gold" id="opt-val-mae">대기 중</span>
+                            </div>
+                            <div class="opt-stat-row">
+                                <span class="opt-stat-label">주가 예측 적중률</span>
+                                <span class="opt-stat-value font-mono text-green" id="opt-val-accuracy">대기 중</span>
+                            </div>
+                            <div class="opt-stat-row border-top-dashed" style="margin-top: 10px; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 8px;">
+                                <span class="opt-stat-label" style="font-size: 11px;">최적화 가중치 제안:</span>
+                                <span class="opt-stat-value" id="opt-val-proposal" style="font-size: 11.5px; color: var(--color-primary);">실행 시 제안됨</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Sentiment News Feed -->
                     <div class="news-card card">
                         <div class="card-header">
