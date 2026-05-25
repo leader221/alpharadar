@@ -1093,36 +1093,40 @@ function updatePortfolioUI() {
     document.getElementById('portfolio-cash').innerText = `$${portfolio.cash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     
     let holdingsValue = 0;
-    const holdingsListContainer = document.getElementById('portfolio-holdings-list');
-    holdingsListContainer.innerHTML = '';
-    
-    Object.keys(portfolio.holdings).forEach(ticker => {
-        const shares = portfolio.holdings[ticker];
-        if (shares > 0) {
-            const currentClose = historicalData[ticker][historicalData[ticker].length - 1].close;
+    const tableBody = document.getElementById('portfolio-holdings-table-body');
+    if (tableBody) {
+        tableBody.innerHTML = '';
+        
+        // Loop through all registered tickers to display them in the portfolio table
+        const tickers = Object.keys(tickerMetadata);
+        tickers.forEach(ticker => {
+            const shares = portfolio.holdings[ticker] || 0;
+            const history = historicalData[ticker];
+            const currentClose = (history && history.length > 0) ? history[history.length - 1].close : 0;
             const value = shares * currentClose;
             const meta = tickerMetadata[ticker];
+            
             let valueInUSD = value;
-            if (meta.currency === 'KRW') {
+            if (meta.currency === 'KRW' && USDKRW) {
                 valueInUSD = value / USDKRW;
             }
             holdingsValue += valueInUSD;
             
-            const row = document.createElement('div');
-            row.className = 'holding-item';
+            const row = document.createElement('tr');
             row.innerHTML = `
-                <div class="holding-left">
-                    <span class="holding-symbol text-white">${ticker}</span>
-                    <span class="holding-shares">${shares}주</span>
-                </div>
-                <span class="holding-value text-white">${formatMoney(value, meta.currency)}</span>
+                <td style="font-family: var(--font-mono); font-weight: 700; color: #fff;">${ticker}</td>
+                <td style="color: var(--text-muted);">${meta.name}</td>
+                <td class="text-right font-mono">${formatMoney(currentClose, meta.currency)}</td>
+                <td class="text-center">
+                    <input type="number" class="input-holding-shares" data-ticker="${ticker}" value="${shares}" min="0">
+                </td>
+                <td class="text-right font-mono text-white">${formatMoney(value, meta.currency)}</td>
+                <td class="text-center">
+                    <span class="search-result-badge ${meta.currency === 'KRW' ? 'exchange' : 'type'}" style="padding: 2px 6px;">${meta.currency}</span>
+                </td>
             `;
-            holdingsListContainer.appendChild(row);
-        }
-    });
-    
-    if (holdingsValue === 0) {
-        holdingsListContainer.innerHTML = '<span class="stat-label text-dark" style="font-size: 11px; text-align: center; display: block; width: 100%;">보유 자산 없음</span>';
+            tableBody.appendChild(row);
+        });
     }
     
     const totalValue = portfolio.cash + holdingsValue;
@@ -1410,13 +1414,29 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Portfolio Reset
     document.getElementById('reset-portfolio').addEventListener('click', () => {
-        portfolio = {
-            cash: 100000.00,
-            holdings: { QQQ: 0, SPY: 0, SCHD: 0, JEPQ: 0, HYNIX: 0, HYUNDAI: 0, SKT: 0, HANA: 0, GOOGL: 0, AMZN: 0 }
-        };
+        portfolio.cash = 100000.00;
+        Object.keys(portfolio.holdings).forEach(ticker => {
+            portfolio.holdings[ticker] = 0;
+        });
         updatePortfolioUI();
         showToast('모의 포트폴리오가 초기화되었습니다.');
     });
+    
+    // Direct Inline Holdings Quantity Editing
+    const tableBodyElement = document.getElementById('portfolio-holdings-table-body');
+    if (tableBodyElement) {
+        tableBodyElement.addEventListener('change', (e) => {
+            if (e.target.classList.contains('input-holding-shares')) {
+                const ticker = e.target.getAttribute('data-ticker');
+                let newQty = parseInt(e.target.value);
+                if (isNaN(newQty) || newQty < 0) newQty = 0;
+                
+                portfolio.holdings[ticker] = newQty;
+                updatePortfolioUI();
+                showToast(`${tickerMetadata[ticker].name} 보유량이 ${newQty}주로 직접 수정되었습니다.`);
+            }
+        });
+    }
     
     // Local popular Korean stocks dictionary for quick lookup and fallback (bypasses Yahoo Finance CJK 400 Bad Request error)
     const KOREAN_STOCK_DICTIONARY = [

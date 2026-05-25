@@ -127,28 +127,6 @@
                 </div>
             </nav>
 
-            <!-- Mock Portfolio Simulator -->
-            <div class="sidebar-portfolio card">
-                <div class="card-header-simple">
-                    <h3><i class="fa-solid fa-wallet"></i> 모의 투자 포트폴리오</h3>
-                    <button class="btn-reset" id="reset-portfolio" title="초기화"><i class="fa-solid fa-rotate-left"></i></button>
-                </div>
-                <div class="portfolio-stat">
-                    <span class="stat-label">가용 현금</span>
-                    <span class="stat-value text-gold" id="portfolio-cash">$100,000.00</span>
-                </div>
-                <div class="portfolio-stat">
-                    <span class="stat-label">보유 자산 평가액</span>
-                    <span class="stat-value" id="portfolio-holding-val">$0.00</span>
-                </div>
-                <div class="portfolio-stat border-top">
-                    <span class="stat-label">총 자산</span>
-                    <span class="stat-value font-bold text-white" id="portfolio-total">$100,000.00</span>
-                </div>
-                <div class="portfolio-holdings" id="portfolio-holdings-list">
-                    <!-- Dynamic Holdings list will go here -->
-                </div>
-            </div>
 
             <!-- Market Status Indicator -->
             <div class="market-status">
@@ -447,6 +425,47 @@
                             <!-- News Items will be loaded dynamically here -->
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Mock Portfolio Simulator Card (Placed at the bottom of the main content) -->
+            <div class="portfolio-card card">
+                <div class="card-header">
+                    <h3><i class="fa-solid fa-wallet"></i> 모의 투자 포트폴리오 (계좌 현황)</h3>
+                    <button class="btn-reset" id="reset-portfolio" title="초기화"><i class="fa-solid fa-rotate-left"></i> 초기화</button>
+                </div>
+                
+                <div class="portfolio-summary-row">
+                    <div class="summary-item">
+                        <span class="summary-label">가용 현금</span>
+                        <span class="summary-value text-gold" id="portfolio-cash">$100,000.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">보유 주식 평가액</span>
+                        <span class="summary-value" id="portfolio-holding-val">$0.00</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">총 자산 (현금+주식)</span>
+                        <span class="summary-value text-green" id="portfolio-total">$100,000.00</span>
+                    </div>
+                </div>
+
+                <div class="portfolio-table-wrapper">
+                    <table class="portfolio-table">
+                        <thead>
+                            <tr>
+                                <th>종목코드</th>
+                                <th>종목명</th>
+                                <th class="text-right">현재가</th>
+                                <th class="text-center" style="width: 150px;">보유 수량</th>
+                                <th class="text-right">평가 금액</th>
+                                <th class="text-center">통화</th>
+                            </tr>
+                        </thead>
+                        <tbody id="portfolio-holdings-table-body">
+                            <!-- Dynamic holdings rows will go here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>
