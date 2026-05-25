@@ -1689,5 +1689,55 @@ body {
     }
 }
 
+/* Custom delete button on sidebar nav tabs */
+.btn-delete-tab {
+    font-size: 16px;
+    color: var(--text-dark);
+    margin-left: auto;
+    padding: 0px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 1;
+    transition: all var(--transition-fast) ease;
+}
+
+.btn-delete-tab:hover {
+    color: #ff4b4b !important;
+    background: rgba(255, 75, 75, 0.15);
+}
+
+.nav-tab {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.nav-tab .btn-delete-tab {
+    opacity: 0.2;
+}
+
+.nav-tab:hover .btn-delete-tab {
+    opacity: 1;
+}
+
+/* Delete button in portfolio table */
+.btn-action-danger {
+    background: rgba(255, 75, 75, 0.08);
+    border: 1px solid rgba(255, 75, 75, 0.25);
+    color: hsl(0, 100%, 65%);
+    transition: all var(--transition-fast) ease;
+}
+
+.btn-action-danger:hover {
+    background: rgba(255, 75, 75, 0.2);
+    border-color: rgba(255, 75, 75, 0.5);
+    box-shadow: 0 0 8px rgba(255, 75, 75, 0.25);
+    transform: scale(1.03);
+}
+
+.btn-action-danger:active {
+    transform: scale(1);
+}
+
 
 

@@ -235,6 +235,7 @@ function initCustomTickers() {
             const customList = JSON.parse(saved);
             customList.forEach(meta => {
                 const key = meta.symbol;
+                meta.isCustom = true; // Enforce custom flag on load
                 tickerMetadata[key] = meta;
                 if (portfolio.holdings[key] === undefined) {
                     portfolio.holdings[key] = 0;
@@ -280,6 +281,7 @@ function injectTickerTab(key, meta) {
             <span class="ticker-price-mini" id="mini-price-${key}">${meta.currency === 'KRW' ? '₩0' : '$0.00'}</span>
         </div>
         <span class="ticker-change-mini" id="mini-change-${key}">+0.00%</span>
+        ${meta.isCustom ? `<span class="btn-delete-tab" data-ticker="${key}">&times;</span>` : ''}
     `;
     
     btn.addEventListener('click', (e) => {
@@ -291,7 +293,66 @@ function injectTickerTab(key, meta) {
         updateDashboardUI();
     });
     
+    if (meta.isCustom) {
+        const delBtn = btn.querySelector('.btn-delete-tab');
+        if (delBtn) {
+            delBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent tab switching
+                removeCustomTicker(key);
+            });
+        }
+    }
+    
     parent.appendChild(btn);
+}
+
+// Handler to safely remove a user-added custom ticker
+function removeCustomTicker(symbol) {
+    if (!confirm(`${tickerMetadata[symbol]?.name || symbol} 종목을 제거하시겠습니까?`)) {
+        return;
+    }
+    
+    // 1. Delete from global memory states
+    delete tickerMetadata[symbol];
+    delete historicalData[symbol];
+    delete portfolio.holdings[symbol];
+    delete newsSeed[symbol];
+    delete agentFlowData[symbol];
+    
+    // 2. Remove the tab DOM element
+    const tab = document.querySelector(`.nav-tab[data-ticker="${symbol}"]`);
+    if (tab) {
+        tab.remove();
+    }
+    
+    // 3. Update localStorage list
+    let saved = localStorage.getItem('alpharadar_custom_tickers');
+    if (saved) {
+        try {
+            let customList = JSON.parse(saved);
+            customList = customList.filter(item => item.symbol !== symbol);
+            localStorage.setItem('alpharadar_custom_tickers', JSON.stringify(customList));
+        } catch (e) {
+            console.error('[AlphaRadar] Failed to update localStorage custom tickers:', e.message);
+        }
+    }
+    
+    // 4. If the active ticker is deleted, switch back to QQQ
+    if (currentTicker === symbol) {
+        currentTicker = 'QQQ';
+        document.querySelectorAll('.nav-tab').forEach(btn => {
+            if (btn.getAttribute('data-ticker') === currentTicker) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+    
+    // 5. Refresh UI elements
+    updateDashboardUI();
+    updatePortfolioUI();
+    showToast(`${symbol} 종목이 제거되었습니다.`);
 }
 
 // ==========================================
@@ -1124,6 +1185,9 @@ function updatePortfolioUI() {
                 <td class="text-center">
                     <span class="search-result-badge ${meta.currency === 'KRW' ? 'exchange' : 'type'}" style="padding: 2px 6px;">${meta.currency}</span>
                 </td>
+                <td class="text-center">
+                    ${meta.isCustom ? `<button class="btn-delete-ticker btn-action-danger" data-ticker="${ticker}" style="padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">제거</button>` : `<span style="color: var(--text-dark); font-size: 11px;">고정</span>`}
+                </td>
             `;
             tableBody.appendChild(row);
         });
@@ -1436,6 +1500,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(`${tickerMetadata[ticker].name} 보유량이 ${newQty}주로 직접 수정되었습니다.`);
             }
         });
+        
+        // delegated listener to remove custom stocks directly from portfolio table
+        tableBodyElement.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-delete-ticker')) {
+                const ticker = e.target.getAttribute('data-ticker');
+                removeCustomTicker(ticker);
+            }
+        });
     }
     
     // Local popular Korean stocks dictionary for quick lookup and fallback (bypasses Yahoo Finance CJK 400 Bad Request error)
@@ -1699,7 +1771,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 isDividendETF: false,
                 basePrice: dataPoints[dataPoints.length - 1].close,
                 volatility: 0.015,
-                currency: chartResult.meta.currency || (isKRW ? 'KRW' : 'USD')
+                currency: chartResult.meta.currency || (isKRW ? 'KRW' : 'USD'),
+                isCustom: true
             };
             
             tickerMetadata[symbol] = meta;
