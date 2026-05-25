@@ -1203,39 +1203,77 @@ function updatePortfolioUI() {
     if (tableBody) {
         tableBody.innerHTML = '';
         
-        // Loop through all registered tickers to display them in the portfolio table
         const tickers = Object.keys(tickerMetadata);
-        tickers.forEach(ticker => {
-            const shares = portfolio.holdings[ticker] || 0;
-            const history = historicalData[ticker];
-            const currentClose = (history && history.length > 0) ? history[history.length - 1].close : 0;
-            const value = shares * currentClose;
+        
+        // Helper to parse dividend yield value
+        const getYield = (ticker) => {
             const meta = tickerMetadata[ticker];
+            if (!meta || !meta.dividendYield) return 0;
+            const parsed = parseFloat(meta.dividendYield.replace('%', ''));
+            return isNaN(parsed) ? 0 : parsed;
+        };
+        
+        // Group and sort tickers (dividend-focused first)
+        const korTickers = tickers.filter(t => {
+            const meta = tickerMetadata[t];
+            return meta.currency === 'KRW' || t.endsWith('.KS') || t.endsWith('.KQ');
+        }).sort((a, b) => getYield(b) - getYield(a));
+        
+        const usaTickers = tickers.filter(t => {
+            const meta = tickerMetadata[t];
+            return !(meta.currency === 'KRW' || t.endsWith('.KS') || t.endsWith('.KQ'));
+        }).sort((a, b) => getYield(b) - getYield(a));
+
+        const renderGroup = (groupTickers, title, iconClass) => {
+            if (groupTickers.length === 0) return;
             
-            let valueInUSD = value;
-            if (meta.currency === 'KRW' && USDKRW) {
-                valueInUSD = value / USDKRW;
-            }
-            holdingsValue += valueInUSD;
-            
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td style="font-family: var(--font-mono); font-weight: 700; color: #fff;">${ticker}</td>
-                <td style="color: var(--text-muted);">${meta.name}</td>
-                <td class="text-right font-mono">${formatMoney(currentClose, meta.currency)}</td>
-                <td class="text-center">
-                    <input type="number" class="input-holding-shares" data-ticker="${ticker}" value="${shares}" min="0">
-                </td>
-                <td class="text-right font-mono text-white">${formatMoney(value, meta.currency)}</td>
-                <td class="text-center">
-                    <span class="search-result-badge ${meta.currency === 'KRW' ? 'exchange' : 'type'}" style="padding: 2px 6px;">${meta.currency}</span>
-                </td>
-                <td class="text-center">
-                    <button class="btn-delete-ticker btn-action-danger" data-ticker="${ticker}" style="padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">제거</button>
+            // Section Header row
+            const headerRow = document.createElement('tr');
+            headerRow.className = 'portfolio-section-row';
+            headerRow.innerHTML = `
+                <td colspan="7" style="background: rgba(255, 255, 255, 0.03); color: var(--color-primary); font-weight: 700; font-size: 11.5px; padding: 10px 14px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); text-align: left;">
+                    <i class="${iconClass}" style="margin-right: 6px; color: var(--color-primary);"></i> ${title}
                 </td>
             `;
-            tableBody.appendChild(row);
-        });
+            tableBody.appendChild(headerRow);
+            
+            // Group rows
+            groupTickers.forEach(ticker => {
+                const shares = portfolio.holdings[ticker] || 0;
+                const history = historicalData[ticker];
+                const currentClose = (history && history.length > 0) ? history[history.length - 1].close : 0;
+                const value = shares * currentClose;
+                const meta = tickerMetadata[ticker];
+                
+                let valueInUSD = value;
+                if (meta.currency === 'KRW' && USDKRW) {
+                    valueInUSD = value / USDKRW;
+                }
+                holdingsValue += valueInUSD;
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="font-family: var(--font-mono); font-weight: 700; color: #fff;">${ticker}</td>
+                    <td style="color: var(--text-muted);">${meta.name} <span style="font-size: 10.5px; color: var(--text-dark); margin-left: 6px;">(배당 ${meta.dividendYield || '0.00%'})</span></td>
+                    <td class="text-right font-mono">${formatMoney(currentClose, meta.currency)}</td>
+                    <td class="text-center">
+                        <input type="number" class="input-holding-shares" data-ticker="${ticker}" value="${shares}" min="0">
+                    </td>
+                    <td class="text-right font-mono text-white">${formatMoney(value, meta.currency)}</td>
+                    <td class="text-center">
+                        <span class="search-result-badge ${meta.currency === 'KRW' ? 'exchange' : 'type'}" style="padding: 2px 6px;">${meta.currency}</span>
+                    </td>
+                    <td class="text-center">
+                        <button class="btn-delete-ticker btn-action-danger" data-ticker="${ticker}" style="padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">제거</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        };
+
+        // Render sections KOR then USA
+        renderGroup(korTickers, '국내 자산 (KOR)', 'fa-solid fa-flag-checkered');
+        renderGroup(usaTickers, '해외 자산 (USA)', 'fa-solid fa-earth-americas');
     }
     
     // Calculate values
