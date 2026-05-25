@@ -1,0 +1,14 @@
+{
+  "name": "alpharadar",
+  "version": "1.0.0",
+  "description": "AlphaRadar: Premium Stock & ETF Analysis Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "private": true
+}
