@@ -1179,7 +1179,9 @@ function updateFearGreedUI() {
 
 // Portfolio Simulation Logic
 function updatePortfolioUI() {
-    document.getElementById('portfolio-cash').innerText = `$${portfolio.cash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const cashUSD = portfolio.cash;
+    const cashKRW = cashUSD * USDKRW;
+    document.getElementById('portfolio-cash').innerHTML = `$${cashUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(cashKRW).toLocaleString()}</span>`;
     
     let holdingsValue = 0;
     const tableBody = document.getElementById('portfolio-holdings-table-body');
@@ -1222,8 +1224,10 @@ function updatePortfolioUI() {
     }
     
     const totalValue = portfolio.cash + holdingsValue;
-    document.getElementById('portfolio-holding-val').innerText = `$${holdingsValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    document.getElementById('portfolio-total').innerText = `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const holdingsValueKRW = holdingsValue * USDKRW;
+    const totalValueKRW = totalValue * USDKRW;
+    document.getElementById('portfolio-holding-val').innerHTML = `$${holdingsValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(holdingsValueKRW).toLocaleString()}</span>`;
+    document.getElementById('portfolio-total').innerHTML = `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(totalValueKRW).toLocaleString()}</span>`;
 }
 
 // Show Toast Notifications
