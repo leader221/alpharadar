@@ -1418,6 +1418,57 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('모의 포트폴리오가 초기화되었습니다.');
     });
     
+    // Local popular Korean stocks dictionary for quick lookup and fallback (bypasses Yahoo Finance CJK 400 Bad Request error)
+    const KOREAN_STOCK_DICTIONARY = [
+        { symbol: '005930.KS', name: '삼성전자', shortname: 'SamsungElec', longname: 'Samsung Electronics', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '000660.KS', name: 'SK하이닉스', shortname: 'SK Hynix', longname: 'SK Hynix Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '373220.KS', name: 'LG에너지솔루션', shortname: 'LG Energy Sol', longname: 'LG Energy Solution', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '207940.KS', name: '삼성바이오로직스', shortname: 'Samsung Bio', longname: 'Samsung Biologics', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '005380.KS', name: '현대자동차', shortname: 'Hyundai Motor', longname: 'Hyundai Motor Company', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '000270.KS', name: '기아', shortname: 'Kia', longname: 'Kia Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '068270.KS', name: '셀트리온', shortname: 'Celltrion', longname: 'Celltrion Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '005490.KS', name: 'POSCO홀딩스', shortname: 'POSCO Holdings', longname: 'POSCO Holdings Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '035420.KS', name: 'NAVER', shortname: 'NAVER', longname: 'NAVER Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '035720.KS', name: '카카오', shortname: 'Kakao', longname: 'Kakao Corp.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '006400.KS', name: '삼성SDI', shortname: 'Samsung SDI', longname: 'Samsung SDI Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '051910.KS', name: 'LG화학', shortname: 'LG Chem', longname: 'LG Chem, Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '105560.KS', name: 'KB금융', shortname: 'KB Financial', longname: 'KB Financial Group Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '055550.KS', name: '신한지주', shortname: 'Shinhan Fin', longname: 'Shinhan Financial Group Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '012330.KS', name: '현대모비스', shortname: 'Hyundai Mobis', longname: 'Hyundai Mobis Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '028260.KS', name: '삼성물산', shortname: 'Samsung C&T', longname: 'Samsung C&T Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '032830.KS', name: '삼성생명', shortname: 'Samsung Life', longname: 'Samsung Life Insurance Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '096770.KS', name: 'SK이노베이션', shortname: 'SK Innovation', longname: 'SK Innovation Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '066570.KS', name: 'LG전자', shortname: 'LG Electronics', longname: 'LG Electronics Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '015760.KS', name: '한국전력', shortname: 'KEPCO', longname: 'Korea Electric Power Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '086790.KS', name: '하나금융지주', shortname: 'Hana Financial', longname: 'Hana Financial Group Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '323410.KS', name: '카카오뱅크', shortname: 'Kakao Bank', longname: 'Kakao Bank Corp.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '352820.KS', name: '하이브', shortname: 'HYBE', longname: 'HYBE Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '011200.KS', name: 'HMM', shortname: 'HMM', longname: 'HMM Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '034020.KS', name: '두산에너빌리티', shortname: 'Doosan Enerbility', longname: 'Doosan Enerbility Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '000810.KS', name: '삼성화재', shortname: 'Samsung F&M', longname: 'Samsung Fire & Marine Insurance Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '010950.KS', name: 'S-Oil', shortname: 'S-Oil', longname: 'S-Oil Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '090430.KS', name: '아모레퍼시픽', shortname: 'Amorepacific', longname: 'Amorepacific Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '003490.KS', name: '대한항공', shortname: 'Korean Air', longname: 'Korean Air Lines Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '316140.KS', name: '우리금융지주', shortname: 'Woori Financial', longname: 'Woori Financial Group Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '033780.KS', name: 'KT&G', shortname: 'KT&G', longname: 'KT&G Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '030200.KS', name: 'KT', shortname: 'KT', longname: 'KT Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '034730.KS', name: 'SK', shortname: 'SK Corp', longname: 'SK Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '010140.KS', name: '삼성중공업', shortname: 'Samsung Heavy', longname: 'Samsung Heavy Industries Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '042700.KS', name: '한미반도체', shortname: 'Hanmi Semi', longname: 'Hanmi Semiconductor Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '196170.KQ', name: '알테오젠', shortname: 'Alteogen', longname: 'Alteogen Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '028300.KQ', name: 'HLB', shortname: 'HLB', longname: 'HLB Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '247540.KQ', name: '에코프로비엠', shortname: 'EcoPro BM', longname: 'EcoPro BM Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '086520.KQ', name: '에코프로', shortname: 'EcoPro', longname: 'EcoPro Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '035900.KQ', name: 'JYP Ent.', shortname: 'JYP Ent', longname: 'JYP Entertainment Corporation', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '041510.KQ', name: '에스엠', shortname: 'SM Ent', longname: 'SM Entertainment Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '122870.KQ', name: '와이지엔터테인먼트', shortname: 'YG Ent', longname: 'YG Entertainment Inc.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '012450.KS', name: '한화에어로스페이스', shortname: 'Hanwa Aerospace', longname: 'Hanwha Aerospace Co., Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '047810.KS', name: '한국항공우주', shortname: 'KAI', longname: 'Korea Aerospace Industries, Ltd.', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '064350.KS', name: '현대로템', shortname: 'Hyundai Rotem', longname: 'Hyundai Rotem Company', quoteType: 'EQUITY', exchange: 'KSC' },
+        { symbol: '069500.KS', name: 'KODEX 200', shortname: 'KODEX 200', longname: 'Samsung KODEX 200 ETF', quoteType: 'ETF', exchange: 'KSC' },
+        { symbol: '371460.KS', name: 'TIGER 차이나전기차', shortname: 'TIGER China EV', longname: 'Mirae Asset TIGER China Electric Vehicle ETF', quoteType: 'ETF', exchange: 'KSC' }
+    ];
+
     // Ticker Search & Additions Event Handlers
     const searchInput = document.getElementById('ticker-search-input');
     const searchResults = document.getElementById('ticker-search-results');
@@ -1438,15 +1489,54 @@ document.addEventListener('DOMContentLoaded', () => {
         
         clearTimeout(searchDebounceTimeout);
         searchDebounceTimeout = setTimeout(async () => {
+            // 1. Check local dictionary matches (case-insensitive)
+            const localMatches = [];
+            const lowerQuery = query.toLowerCase();
+            const addedSymbols = new Set();
+            
+            KOREAN_STOCK_DICTIONARY.forEach(item => {
+                if (addedSymbols.has(item.symbol)) return;
+                
+                if (item.name.toLowerCase().includes(lowerQuery) || 
+                    item.symbol.toLowerCase().includes(lowerQuery) ||
+                    item.shortname.toLowerCase().includes(lowerQuery) ||
+                    item.longname.toLowerCase().includes(lowerQuery)) {
+                    
+                    localMatches.push({
+                        symbol: item.symbol,
+                        shortname: item.name, // Show Korean name
+                        longname: item.longname,
+                        exchange: item.exchange,
+                        quoteType: item.quoteType
+                    });
+                    addedSymbols.add(item.symbol);
+                }
+            });
+
             try {
                 const response = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
                 if (response.ok) {
                     const json = await response.json();
                     const quotes = json.quotes || [];
-                    renderSearchResults(quotes);
+                    
+                    // Merge local matches and backend quotes, avoiding duplicates
+                    const merged = [...localMatches];
+                    quotes.forEach(q => {
+                        if (!addedSymbols.has(q.symbol)) {
+                            merged.push(q);
+                            addedSymbols.add(q.symbol);
+                        }
+                    });
+                    
+                    renderSearchResults(merged);
+                } else {
+                    // Fallback to local matches if server returns error (e.g. CJK 400 Bad Request)
+                    renderSearchResults(localMatches);
                 }
             } catch (err) {
                 console.error('[AlphaRadar] Search fetch failed:', err.message);
+                // Fallback to local matches
+                renderSearchResults(localMatches);
             }
         }, 300);
     });
@@ -1469,7 +1559,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderSearchResults(quotes) {
         searchResults.innerHTML = '';
         if (quotes.length === 0) {
-            searchResults.innerHTML = '<div style="padding: 12px; font-size: 11px; color: var(--text-dark); text-align: center;">검색 결과가 없습니다.</div>';
+            searchResults.innerHTML = `
+                <div style="padding: 12px; font-size: 11px; color: var(--text-dark); text-align: center;">
+                    검색 결과가 없습니다.
+                </div>
+                <div style="padding: 10px 12px; font-size: 10.5px; color: var(--color-primary); text-align: center; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.15); line-height: 1.4;">
+                    한글 사명 검색 대신 <strong>영어 사명(예: Samsung, Hyundai)</strong> 이나 <strong>숫자 코드(예: 005930)</strong>로 검색해 보세요!
+                </div>
+            `;
             searchResults.classList.remove('hidden');
             return;
         }
@@ -1505,9 +1602,12 @@ document.addEventListener('DOMContentLoaded', () => {
             searchResults.appendChild(item);
         });
         
-        if (searchResults.children.length === 0) {
-            searchResults.innerHTML = '<div style="padding: 12px; font-size: 11px; color: var(--text-dark); text-align: center;">지원되지 않는 종목입니다.</div>';
-        }
+        // Add helpful search tip footer
+        const tip = document.createElement('div');
+        tip.style = 'padding: 10px 12px; font-size: 10.5px; color: var(--text-muted); text-align: center; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.15); line-height: 1.4;';
+        tip.innerHTML = `찾는 종목이 없으면 <strong>영어 이름</strong>이나 <strong>숫자 코드</strong>로 검색해 보세요.`;
+        searchResults.appendChild(tip);
+
         searchResults.classList.remove('hidden');
     }
     
