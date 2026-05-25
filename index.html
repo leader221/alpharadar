@@ -39,92 +39,10 @@
             <!-- Ticker Selection Tabs -->
             <nav class="ticker-nav" id="ticker-nav-container">
                 <div class="section-title">국내 주식 (KOR)</div>
-                <div class="ticker-group" id="ticker-group-kor">
-                    <button class="nav-tab" data-ticker="HYNIX">
-                        <span class="ticker-badge hynix">000660</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">SK하이닉스</span>
-                            <span class="ticker-price-mini" id="mini-price-HYNIX">₩0</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-HYNIX">+0.00%</span>
-                    </button>
-                    <button class="nav-tab" data-ticker="HYUNDAI">
-                        <span class="ticker-badge hyundai">005380</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">현대자동차</span>
-                            <span class="ticker-price-mini" id="mini-price-HYUNDAI">₩0</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-HYUNDAI">+0.00%</span>
-                    </button>
-                    <button class="nav-tab" data-ticker="SKT">
-                        <span class="ticker-badge skt">017670</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">SK텔레콤</span>
-                            <span class="ticker-price-mini" id="mini-price-SKT">₩0</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-SKT">+0.00%</span>
-                    </button>
-                    <button class="nav-tab" data-ticker="HANA">
-                        <span class="ticker-badge hana">086790</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">하나금융지주</span>
-                            <span class="ticker-price-mini" id="mini-price-HANA">₩0</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-HANA">+0.00%</span>
-                    </button>
-                </div>
+                <div class="ticker-group" id="ticker-group-kor"></div>
 
                 <div class="section-title" style="margin-top: 16px;">해외 주식/ETF (USA)</div>
-                <div class="ticker-group" id="ticker-group-usa">
-                    <button class="nav-tab active" data-ticker="QQQ">
-                        <span class="ticker-badge nasdaq">QQQ</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">Nasdaq 100</span>
-                            <span class="ticker-price-mini" id="mini-price-QQQ">$0.00</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-QQQ">+0.00%</span>
-                    </button>
-                    <button class="nav-tab" data-ticker="SPY">
-                        <span class="ticker-badge spy">SPY</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">S&P 500 ETF</span>
-                            <span class="ticker-price-mini" id="mini-price-SPY">$0.00</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-SPY">+0.00%</span>
-                    </button>
-                    <button class="nav-tab" data-ticker="SCHD">
-                        <span class="ticker-badge schd">SCHD</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">Schwab Div ETF</span>
-                            <span class="ticker-price-mini" id="mini-price-SCHD">$0.00</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-SCHD">+0.00%</span>
-                    </button>
-                    <button class="nav-tab" data-ticker="JEPQ">
-                        <span class="ticker-badge jepq">JEPQ</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">JPMorgan Premium</span>
-                            <span class="ticker-price-mini" id="mini-price-JEPQ">$0.00</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-JEPQ">+0.00%</span>
-                    </button>
-                    <button class="nav-tab" data-ticker="GOOGL">
-                        <span class="ticker-badge googl">GOOGL</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">Alphabet A</span>
-                            <span class="ticker-price-mini" id="mini-price-GOOGL">$0.00</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-GOOGL">+0.00%</span>
-                    </button>
-                    <button class="nav-tab" data-ticker="AMZN">
-                        <span class="ticker-badge amzn">AMZN</span>
-                        <div class="ticker-info">
-                            <span class="ticker-name">Amazon</span>
-                            <span class="ticker-price-mini" id="mini-price-AMZN">$0.00</span>
-                        </div>
-                        <span class="ticker-change-mini" id="mini-change-AMZN">+0.00%</span>
-                    </button>
-                </div>
+                <div class="ticker-group" id="ticker-group-usa"></div>
             </nav>
 
 
@@ -137,6 +55,12 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
+            <!-- Empty state overlay when no tickers exist -->
+            <div class="empty-state-overlay">
+                <i class="fa-solid fa-folder-open"></i>
+                <h2>등록된 종목이 없습니다</h2>
+                <p>상단 검색창에서 분석하거나 모의 투자할 종목을 검색하고 추가해 보세요.</p>
+            </div>
             <!-- Header Row -->
             <header class="main-header">
                 <div class="header-left">

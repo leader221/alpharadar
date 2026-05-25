@@ -281,7 +281,7 @@ function injectTickerTab(key, meta) {
             <span class="ticker-price-mini" id="mini-price-${key}">${meta.currency === 'KRW' ? '₩0' : '$0.00'}</span>
         </div>
         <span class="ticker-change-mini" id="mini-change-${key}">+0.00%</span>
-        ${meta.isCustom ? `<span class="btn-delete-tab" data-ticker="${key}">&times;</span>` : ''}
+        <span class="btn-delete-tab" data-ticker="${key}">&times;</span>
     `;
     
     btn.addEventListener('click', (e) => {
@@ -293,21 +293,19 @@ function injectTickerTab(key, meta) {
         updateDashboardUI();
     });
     
-    if (meta.isCustom) {
-        const delBtn = btn.querySelector('.btn-delete-tab');
-        if (delBtn) {
-            delBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent tab switching
-                removeCustomTicker(key);
-            });
-        }
+    const delBtn = btn.querySelector('.btn-delete-tab');
+    if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent tab switching
+            removeTicker(key);
+        });
     }
     
     parent.appendChild(btn);
 }
 
-// Handler to safely remove a user-added custom ticker
-function removeCustomTicker(symbol) {
+// Handler to safely remove a user-added custom ticker or default ticker
+function removeTicker(symbol) {
     if (!confirm(`${tickerMetadata[symbol]?.name || symbol} 종목을 제거하시겠습니까?`)) {
         return;
     }
@@ -336,20 +334,38 @@ function removeCustomTicker(symbol) {
             console.error('[AlphaRadar] Failed to update localStorage custom tickers:', e.message);
         }
     }
-    
-    // 4. If the active ticker is deleted, switch back to QQQ
-    if (currentTicker === symbol) {
-        currentTicker = 'QQQ';
-        document.querySelectorAll('.nav-tab').forEach(btn => {
-            if (btn.getAttribute('data-ticker') === currentTicker) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
+
+    // 4. Update localStorage list for deleted tickers
+    let deletedTickersSaved = localStorage.getItem('alpharadar_deleted_tickers');
+    let deletedList = [];
+    if (deletedTickersSaved) {
+        try {
+            deletedList = JSON.parse(deletedTickersSaved);
+        } catch (e) {}
+    }
+    if (!deletedList.includes(symbol)) {
+        deletedList.push(symbol);
+        localStorage.setItem('alpharadar_deleted_tickers', JSON.stringify(deletedList));
     }
     
-    // 5. Refresh UI elements
+    // 5. If the active ticker is deleted, switch back to first available ticker
+    if (currentTicker === symbol) {
+        const remainingKeys = Object.keys(tickerMetadata);
+        if (remainingKeys.length > 0) {
+            currentTicker = remainingKeys[0];
+            document.querySelectorAll('.nav-tab').forEach(btn => {
+                if (btn.getAttribute('data-ticker') === currentTicker) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        } else {
+            currentTicker = null;
+        }
+    }
+    
+    // 6. Refresh UI elements
     updateDashboardUI();
     updatePortfolioUI();
     showToast(`${symbol} 종목이 제거되었습니다.`);
@@ -914,6 +930,18 @@ function updateStockChart(ticker, days) {
 // 5. DOM BINDING & INTERACTIVITY RENDERER
 // ==========================================
 function updateDashboardUI() {
+    const mainContent = document.querySelector('.main-content');
+    if (!currentTicker || !tickerMetadata[currentTicker]) {
+        if (mainContent) mainContent.classList.add('no-tickers');
+        if (stockChart) {
+            stockChart.destroy();
+            stockChart = null;
+        }
+        return;
+    } else {
+        if (mainContent) mainContent.classList.remove('no-tickers');
+    }
+    
     const dataPoints = historicalData[currentTicker];
     if (!dataPoints || dataPoints.length === 0) {
         console.log(`[AlphaRadar] Waiting for historical data of ${currentTicker} to load...`);
@@ -1186,7 +1214,7 @@ function updatePortfolioUI() {
                     <span class="search-result-badge ${meta.currency === 'KRW' ? 'exchange' : 'type'}" style="padding: 2px 6px;">${meta.currency}</span>
                 </td>
                 <td class="text-center">
-                    ${meta.isCustom ? `<button class="btn-delete-ticker btn-action-danger" data-ticker="${ticker}" style="padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">제거</button>` : `<span style="color: var(--text-dark); font-size: 11px;">고정</span>`}
+                    <button class="btn-delete-ticker btn-action-danger" data-ticker="${ticker}" style="padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">제거</button>
                 </td>
             `;
             tableBody.appendChild(row);
@@ -1346,22 +1374,53 @@ async function fetchRealTimeQuotes() {
 // 6. INITIALIZATION & EVENT BINDINGS
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-    // Load custom tickers from localStorage first
+    // 1. Filter out deleted tickers from tickerMetadata, portfolio.holdings, and newsSeed
+    const deletedTickersSaved = localStorage.getItem('alpharadar_deleted_tickers');
+    if (deletedTickersSaved) {
+        try {
+            const deletedList = JSON.parse(deletedTickersSaved);
+            deletedList.forEach(symbol => {
+                delete tickerMetadata[symbol];
+                if (portfolio.holdings[symbol] !== undefined) {
+                    delete portfolio.holdings[symbol];
+                }
+                if (newsSeed[symbol] !== undefined) {
+                    delete newsSeed[symbol];
+                }
+            });
+        } catch (e) {
+            console.error('[AlphaRadar] Failed to parse deleted tickers:', e);
+        }
+    }
+    
+    // 2. Set currentTicker if the default QQQ has been deleted
+    if (!tickerMetadata[currentTicker]) {
+        const remainingKeys = Object.keys(tickerMetadata);
+        if (remainingKeys.length > 0) {
+            currentTicker = remainingKeys[0];
+        } else {
+            currentTicker = null;
+        }
+    }
+
+    // 3. Clear hardcoded HTML tabs in the groups
+    const korGroup = document.getElementById('ticker-group-kor');
+    const usaGroup = document.getElementById('ticker-group-usa');
+    if (korGroup) korGroup.innerHTML = '';
+    if (usaGroup) usaGroup.innerHTML = '';
+
+    // 4. Inject tabs for all remaining default tickers
+    Object.keys(tickerMetadata).forEach(key => {
+        injectTickerTab(key, tickerMetadata[key]);
+    });
+
+    // 5. Load custom tickers from localStorage
     initCustomTickers();
     
     // Generate base mock stock records
     initHistoricalData();
     // Generate initial agent flow data
     initAgentFlowData();
-    
-    // Bind ticker navigation clicks
-    document.querySelectorAll('.nav-tab').forEach(button => {
-        button.addEventListener('click', (e) => {
-            const btn = e.currentTarget;
-            currentTicker = btn.getAttribute('data-ticker');
-            updateDashboardUI();
-        });
-    });
     
     // Bind chart timeframe filters
     document.querySelectorAll('.tf-btn').forEach(btn => {
@@ -1501,11 +1560,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // delegated listener to remove custom stocks directly from portfolio table
+        // delegated listener to remove stocks directly from portfolio table
         tableBodyElement.addEventListener('click', (e) => {
             if (e.target.classList.contains('btn-delete-ticker')) {
                 const ticker = e.target.getAttribute('data-ticker');
-                removeCustomTicker(ticker);
+                removeTicker(ticker);
             }
         });
     }
@@ -1774,6 +1833,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 currency: chartResult.meta.currency || (isKRW ? 'KRW' : 'USD'),
                 isCustom: true
             };
+            
+            // Clear from deleted list if present
+            let deletedTickersSaved = localStorage.getItem('alpharadar_deleted_tickers');
+            if (deletedTickersSaved) {
+                try {
+                    let deletedList = JSON.parse(deletedTickersSaved);
+                    deletedList = deletedList.filter(s => s !== symbol);
+                    localStorage.setItem('alpharadar_deleted_tickers', JSON.stringify(deletedList));
+                } catch (e) {}
+            }
             
             tickerMetadata[symbol] = meta;
             portfolio.holdings[symbol] = 0;
