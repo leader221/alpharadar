@@ -13,7 +13,7 @@
     <!-- Chart.js for premium, responsive charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Custom stylesheet -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
     <div class="app-container">
@@ -325,6 +325,7 @@
                                 <span class="opt-stat-label" style="font-size: 11px;">최적화 가중치 제안:</span>
                                 <span class="opt-stat-value" id="opt-val-proposal" style="font-size: 11.5px; color: var(--color-primary);">실행 시 제안됨</span>
                             </div>
+                            <button class="btn-opt-run hidden" id="btn-show-opt-results" style="margin-top: 10px; width: 100%; justify-content: center; background: hsla(140, 100%, 40%, 0.12); border-color: hsla(140, 100%, 40%, 0.3); color: hsl(140, 100%, 65%);"><i class="fa-solid fa-square-poll-vertical"></i> 최적화 보고서 보기</button>
                         </div>
                     </div>
 
@@ -348,7 +349,7 @@
                     <button class="btn-reset" id="reset-portfolio" title="보유 수량 초기화"><i class="fa-solid fa-rotate-left"></i> 초기화</button>
                 </div>
                 
-                <div class="portfolio-summary-row">
+                <div class="portfolio-summary-row" style="grid-template-columns: repeat(4, 1fr);">
                     <div class="summary-item">
                         <span class="summary-label">총 보유 종목 수</span>
                         <span class="summary-value text-gold" id="portfolio-holdings-count">0개 종목</span>
@@ -356,6 +357,14 @@
                     <div class="summary-item">
                         <span class="summary-label">총 자산 (주식 평가액 합계)</span>
                         <span class="summary-value text-green" id="portfolio-total">$0.00 <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩0</span></span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">연간 예상 배당금</span>
+                        <span class="summary-value text-gold" id="portfolio-expected-dividends">$0.00 <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩0</span></span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">실제 수령 배당금</span>
+                        <span class="summary-value text-green" id="portfolio-received-dividends">$0.00 <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩0</span></span>
                     </div>
                 </div>
 
@@ -366,9 +375,9 @@
                                 <th>종목코드</th>
                                 <th>종목명</th>
                                 <th class="text-right">현재가</th>
-                                <th class="text-center" style="width: 150px;">보유 수량</th>
+                                <th class="text-center" style="width: 120px;">보유 수량</th>
                                 <th class="text-right">평가 금액</th>
-                                <th class="text-center">통화</th>
+                                <th class="text-center" style="width: 140px;">실제 받은 배당금</th>
                                 <th class="text-center" style="width: 80px;">관리</th>
                             </tr>
                         </thead>
@@ -415,10 +424,78 @@
         </div>
     </div>
 
+    <!-- Details Modal for AI Optimization Results -->
+    <div class="modal" id="opt-results-modal">
+        <div class="modal-content card" style="max-width: 800px; padding: 25px 30px;">
+            <span class="close-btn" id="close-opt-modal">&times;</span>
+            <h2 style="font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-brain" style="color: var(--color-primary);"></i> AI 퀀트 포트폴리오 최적화 결과 보고서</h2>
+            <p class="modal-subtitle" style="margin-top: 0; margin-bottom: 20px;">변동성 대비 수익을 극대화(Return - 2*MDD)한 SLSQP 가중치 최적화 모델 시뮬레이션 결과입니다.</p>
+            
+            <div class="fg-details-grid" style="grid-template-columns: 1.2fr 1fr; gap: 20px;">
+                <!-- Left: Performance Chart -->
+                <div style="background: hsla(224, 40%, 12%, 0.6); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; display: flex; flex-direction: column;">
+                    <h3 style="font-size: 11.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-chart-line" style="color: var(--color-primary);"></i> 포트폴리오 누적 수익률 비교</h3>
+                    <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 230px;">
+                        <img id="opt-chart-img" src="" alt="최적화 성과 그래프" style="width: 100%; height: auto; display: block; border-radius: 6px;">
+                    </div>
+                </div>
+                
+                <!-- Right: Performance Metrics & Weights -->
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <div style="background: hsla(224, 40%, 12%, 0.6); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+                        <h3 style="font-size: 11.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-sliders" style="color: var(--color-primary);"></i> AI 최적화 지표 가중치</h3>
+                        <div id="opt-weights-list" style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--text-muted);">
+                            <!-- Weights items filled dynamically -->
+                        </div>
+                    </div>
+                    
+                    <div style="background: hsla(224, 40%, 12%, 0.6); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+                        <h3 style="font-size: 11.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-scale-balanced" style="color: var(--color-primary);"></i> 시뮬레이션 성과 지표</h3>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); color: var(--text-muted); font-weight: 700;">
+                                    <th style="padding: 4px 6px;">평가 항목</th>
+                                    <th style="padding: 4px 6px; text-align: right; color: var(--color-primary);">최적화 전략</th>
+                                    <th style="padding: 4px 6px; text-align: right;">단순 보유</th>
+                                </tr>
+                            </thead>
+                            <tbody id="opt-metrics-table-body">
+                                <!-- Metrics filled dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bottom: Top 10 Recommendations Table -->
+            <div style="margin-top: 16px; background: hsla(224, 40%, 12%, 0.6); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px;">
+                <h3 style="font-size: 11.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; display: flex; align-items: center; gap: 6px;"><i class="fa-solid fa-award" style="color: var(--color-primary);"></i> 실시간 AI 매수 추천 톱 10 종목</h3>
+                <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; overflow: hidden; max-height: 380px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+                        <thead>
+                            <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.06); color: var(--text-muted); font-weight: 700; text-transform: uppercase;">
+                                <th style="padding: 6px 10px;">순위</th>
+                                <th style="padding: 6px 10px;">코드</th>
+                                <th style="padding: 6px 10px; text-align: right;">추천 점수</th>
+                                <th style="padding: 6px 10px; text-align: right;">현재가</th>
+                                <th style="padding: 6px 10px; text-align: right;">PER</th>
+                                <th style="padding: 6px 10px; text-align: right;">PBR</th>
+                                <th style="padding: 6px 10px; text-align: right;">ROE</th>
+                            </tr>
+                        </thead>
+                        <tbody id="opt-recommendations-table-body" style="color: var(--text-primary);">
+                            <!-- Recommendations filled dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Toast -->
     <div class="toast" id="toast-notification">거래가 성공적으로 처리되었습니다.</div>
 
     <!-- Custom logic script -->
-    <script src="app.js"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>

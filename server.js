@@ -47,8 +47,9 @@ const server = http.createServer((req, res) => {
 
     const parsedUrl = url.parse(req.url, true);
     let pathname = parsedUrl.pathname;
+    console.log(`[AlphaRadar Server] Requested: ${req.method} ${pathname}`);
     
-    // Serve Static Assets (HTML, CSS, JS)
+    // Serve Static Assets (HTML, CSS, JS, PNG)
     if (!pathname.startsWith('/api/')) {
         if (pathname === '/' || pathname === '/index.html') {
             pathname = '/index.html';
@@ -60,6 +61,7 @@ const server = http.createServer((req, res) => {
         if (ext === '.html') contentType = 'text/html; charset=utf-8';
         else if (ext === '.css') contentType = 'text/css';
         else if (ext === '.js') contentType = 'application/javascript';
+        else if (ext === '.png') contentType = 'image/png';
         
         fs.readFile(filePath, (err, content) => {
             if (err) {
@@ -67,7 +69,12 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ error: 'File not found' }));
                 return;
             }
-            res.writeHead(200, { 'Content-Type': contentType });
+            res.writeHead(200, { 
+                'Content-Type': contentType,
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            });
             res.end(content);
         });
         return;
@@ -130,6 +137,52 @@ const server = http.createServer((req, res) => {
             }
             res.writeHead(statusCode, { 'Content-Type': 'application/json' });
             res.end(data);
+        });
+    }
+    // Route 4: Run Quantitative optimization backtest (Asynchronous stale-while-revalidate)
+    else if (pathname === '/api/optimize') {
+        const { exec } = require('child_process');
+        const jsonPath = path.join(__dirname, 'optimization_results.json');
+        
+        // Read existing JSON results file and return immediately to prevent browser timeouts
+        fs.readFile(jsonPath, 'utf8', (err, jsonContent) => {
+            if (err) {
+                // If it doesn't exist, we must run it once to create it
+                console.log('[AlphaRadar Server] No existing results JSON. Running quant_optimizer.py first time...');
+                exec('python quant_optimizer.py', { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+                    if (error) {
+                        console.error(`[AlphaRadar Server] Python execution error: ${error.message}`);
+                        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+                        res.end(JSON.stringify({ error: 'Failed to run optimization script', details: error.message }));
+                        return;
+                    }
+                    
+                    fs.readFile(jsonPath, 'utf8', (err2, jsonContent2) => {
+                        if (err2) {
+                            res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+                            res.end(JSON.stringify({ error: 'Failed to read results file after execution' }));
+                            return;
+                        }
+                        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                        res.end(jsonContent2);
+                    });
+                });
+            } else {
+                // Return existing results immediately! (Instant UI update!)
+                console.log('[AlphaRadar Server] Returning existing optimization results instantly.');
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(jsonContent);
+                
+                // Trigger background update asynchronously
+                console.log('[AlphaRadar Server] Triggering background quant_optimizer.py update...');
+                exec('python quant_optimizer.py', { maxBuffer: 1024 * 1024 * 10 }, (bgError) => {
+                    if (bgError) {
+                        console.error(`[AlphaRadar Server] Asynchronous background update failed: ${bgError.message}`);
+                    } else {
+                        console.log('[AlphaRadar Server] Asynchronous background update completed successfully.');
+                    }
+                });
+            }
         });
     }
 });

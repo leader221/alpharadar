@@ -1051,12 +1051,14 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(4, 6, 12, 0.75);
-    backdrop-filter: blur(8px);
+    background: rgba(4, 6, 12, 0.8);
+    backdrop-filter: blur(10px);
     z-index: 1000;
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: 40px 10px;
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--transition-normal);
@@ -1648,8 +1650,9 @@ body {
     text-align: center;
 }
 
-/* Custom inline number input for holding shares */
-.input-holding-shares {
+/* Custom inline number input for holding shares & received dividends */
+.input-holding-shares,
+.input-received-dividends {
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
@@ -1664,7 +1667,8 @@ body {
     transition: all var(--transition-fast) ease;
 }
 
-.input-holding-shares:focus {
+.input-holding-shares:focus,
+.input-received-dividends:focus {
     border-color: var(--color-primary);
     background: rgba(0, 0, 0, 0.6);
     box-shadow: 0 0 0 2px hsla(220, 100%, 50%, 0.15);
@@ -1672,13 +1676,16 @@ body {
 
 /* Chrome, Safari, Edge, Opera number input controls hide */
 .input-holding-shares::-webkit-outer-spin-button,
-.input-holding-shares::-webkit-inner-spin-button {
+.input-holding-shares::-webkit-inner-spin-button,
+.input-received-dividends::-webkit-outer-spin-button,
+.input-received-dividends::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
 
 /* Firefox number input controls hide */
-.input-holding-shares {
+.input-holding-shares,
+.input-received-dividends {
     -moz-appearance: textfield;
 }
 

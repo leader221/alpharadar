@@ -1,0 +1,15 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "quant_optimizer.py",
+      "package.json",
+      "server.js",
+      "portfolio_performance.png",
+      "optimization_results.json"
+    ]
+  }
+}

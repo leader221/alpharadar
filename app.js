@@ -32,13 +32,27 @@ let portfolio = {
         HANA: 0,
         GOOGL: 0,
         AMZN: 0
+    },
+    receivedDividends: {
+        QQQ: 0,
+        SPY: 0,
+        SCHD: 0,
+        JEPQ: 0,
+        HYNIX: 0,
+        HYUNDAI: 0,
+        SKT: 0,
+        HANA: 0,
+        GOOGL: 0,
+        AMZN: 0
     }
 };
 
 const USDKRW = 1380; // KRW exchange rate for mock portfolio USD calculations
 
-// Determine backend API host dynamically to support both file:/// and server connections
-const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : '';
+// Determine backend API host dynamically to support file:///, server, and remote hosting
+const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : 
+                 (window.location.hostname.includes('onrender.com') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? '' : 
+                 'http://192.168.35.243:3000';
 
 function formatMoney(value, currency) {
     if (currency === 'KRW') {
@@ -306,6 +320,7 @@ function injectTickerTab(key, meta) {
 
 function saveHoldingsToStorage() {
     localStorage.setItem('alpharadar_portfolio_holdings', JSON.stringify(portfolio.holdings));
+    localStorage.setItem('alpharadar_portfolio_received_dividends', JSON.stringify(portfolio.receivedDividends || {}));
 }
 
 function loadHoldingsFromStorage() {
@@ -320,6 +335,26 @@ function loadHoldingsFromStorage() {
             console.warn('[AlphaRadar] Failed to parse saved holdings:', e.message);
         }
     }
+    if (!portfolio.receivedDividends) {
+        portfolio.receivedDividends = {};
+    }
+    const savedDividends = localStorage.getItem('alpharadar_portfolio_received_dividends');
+    if (savedDividends) {
+        try {
+            const divData = JSON.parse(savedDividends);
+            Object.keys(divData).forEach(ticker => {
+                portfolio.receivedDividends[ticker] = divData[ticker];
+            });
+        } catch (e) {
+            console.warn('[AlphaRadar] Failed to parse saved received dividends:', e.message);
+        }
+    }
+    // Ensure all holdings have receivedDividends keys
+    Object.keys(portfolio.holdings).forEach(ticker => {
+        if (portfolio.receivedDividends[ticker] === undefined) {
+            portfolio.receivedDividends[ticker] = 0;
+        }
+    });
 }
 
 // Handler to safely remove a user-added custom ticker or default ticker
@@ -332,6 +367,9 @@ function removeTicker(symbol) {
     delete tickerMetadata[symbol];
     delete historicalData[symbol];
     delete portfolio.holdings[symbol];
+    if (portfolio.receivedDividends) {
+        delete portfolio.receivedDividends[symbol];
+    }
     delete newsSeed[symbol];
     delete agentFlowData[symbol];
     
@@ -1199,6 +1237,8 @@ function updateFearGreedUI() {
 // Portfolio Simulation Logic
 function updatePortfolioUI() {
     let holdingsValue = 0;
+    let totalExpectedUSD = 0;
+    let totalReceivedUSD = 0;
     const tableBody = document.getElementById('portfolio-holdings-table-body');
     if (tableBody) {
         tableBody.innerHTML = '';
@@ -1251,6 +1291,23 @@ function updatePortfolioUI() {
                 }
                 holdingsValue += valueInUSD;
                 
+                // Calculate expected annual dividends
+                const yieldPct = getYield(ticker);
+                const expectedDividend = shares * currentClose * (yieldPct / 100);
+                let expectedDivInUSD = expectedDividend;
+                if (meta.currency === 'KRW' && USDKRW) {
+                    expectedDivInUSD = expectedDividend / USDKRW;
+                }
+                totalExpectedUSD += expectedDivInUSD;
+                
+                // Calculate actual received dividends
+                const receivedDividend = (portfolio.receivedDividends && portfolio.receivedDividends[ticker]) || 0;
+                let receivedDivInUSD = receivedDividend;
+                if (meta.currency === 'KRW' && USDKRW) {
+                    receivedDivInUSD = receivedDividend / USDKRW;
+                }
+                totalReceivedUSD += receivedDivInUSD;
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td style="font-family: var(--font-mono); font-weight: 700; color: #fff;">${ticker}</td>
@@ -1261,7 +1318,7 @@ function updatePortfolioUI() {
                     </td>
                     <td class="text-right font-mono text-white">${formatMoney(value, meta.currency)}</td>
                     <td class="text-center">
-                        <span class="search-result-badge ${meta.currency === 'KRW' ? 'exchange' : 'type'}" style="padding: 2px 6px;">${meta.currency}</span>
+                        <input type="number" class="input-received-dividends" data-ticker="${ticker}" value="${receivedDividend}" min="0" step="any" style="width: 100px;">
                     </td>
                     <td class="text-center">
                         <button class="btn-delete-ticker btn-action-danger" data-ticker="${ticker}" style="padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">제거</button>
@@ -1301,6 +1358,18 @@ function updatePortfolioUI() {
     const totalEl = document.getElementById('portfolio-total');
     if (totalEl) {
         totalEl.innerHTML = `$${holdingsValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(holdingsValueKRW).toLocaleString()}</span>`;
+    }
+
+    const expectedDivEl = document.getElementById('portfolio-expected-dividends');
+    if (expectedDivEl) {
+        const expectedDivKRW = totalExpectedUSD * USDKRW;
+        expectedDivEl.innerHTML = `$${totalExpectedUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(expectedDivKRW).toLocaleString()}</span>`;
+    }
+    
+    const receivedDivEl = document.getElementById('portfolio-received-dividends');
+    if (receivedDivEl) {
+        const receivedDivKRW = totalReceivedUSD * USDKRW;
+        receivedDivEl.innerHTML = `$${totalReceivedUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span class="summary-value-krw" style="font-size: 13.5px; font-weight: 500; opacity: 0.75; margin-left: 6px; font-family: var(--font-body);">₩${Math.round(receivedDivKRW).toLocaleString()}</span>`;
     }
 }
 
@@ -1558,15 +1627,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Portfolio Reset
+        // Portfolio Reset
     document.getElementById('reset-portfolio').addEventListener('click', () => {
         portfolio.cash = 0;
         Object.keys(portfolio.holdings).forEach(ticker => {
             portfolio.holdings[ticker] = 0;
         });
+        if (portfolio.receivedDividends) {
+            Object.keys(portfolio.receivedDividends).forEach(ticker => {
+                portfolio.receivedDividends[ticker] = 0;
+            });
+        }
         saveHoldingsToStorage();
         updatePortfolioUI();
-        showToast('보유 수량이 초기화되었습니다.');
+        showToast('보유 수량 및 받은 배당금이 초기화되었습니다.');
     });
     
     // Direct Inline Holdings Quantity Editing
@@ -1582,6 +1656,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 portfolio.holdings[ticker] = newQty;
                 saveHoldingsToStorage();
                 updatePortfolioUI();
+            } else if (e.target.classList.contains('input-received-dividends')) {
+                const ticker = e.target.getAttribute('data-ticker');
+                let newDiv = parseFloat(e.target.value);
+                if (isNaN(newDiv) || newDiv < 0) newDiv = 0;
+                
+                if (!portfolio.receivedDividends) portfolio.receivedDividends = {};
+                portfolio.receivedDividends[ticker] = newDiv;
+                saveHoldingsToStorage();
+                updatePortfolioUI();
             }
         });
 
@@ -1593,6 +1676,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isNaN(newQty) || newQty < 0) newQty = 0;
                 
                 showToast(`${tickerMetadata[ticker].name} 보유량이 ${newQty}주로 저장되었습니다.`);
+            } else if (e.target.classList.contains('input-received-dividends')) {
+                const ticker = e.target.getAttribute('data-ticker');
+                let newDiv = parseFloat(e.target.value);
+                if (isNaN(newDiv) || newDiv < 0) newDiv = 0;
+                
+                const meta = tickerMetadata[ticker];
+                const currencySymbol = meta.currency === 'KRW' ? '₩' : '$';
+                showToast(`${meta.name} 실제 수령 배당금이 ${currencySymbol}${newDiv.toLocaleString()}으로 저장되었습니다.`);
             }
         });
         
@@ -1946,155 +2037,268 @@ document.addEventListener('DOMContentLoaded', () => {
         runAlgorithmOptimization();
     });
     
+    let optimizationResults = null; // Store Python optimization results
+
     async function runAlgorithmOptimization() {
-        const data = historicalData[currentTicker];
-        if (!data || data.length < 40) {
-            showToast('실패: 최적화를 실행하기 위해 최소 40영업일 이상의 데이터가 필요합니다.');
-            return;
-        }
-        
         const btn = document.getElementById('btn-run-optimizer');
         btn.classList.add('loading');
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 분석 중...';
-        showToast(`${tickerMetadata[currentTicker].name}에 대한 AI 백테스트 및 최적화 실행 중...`);
+        showToast('AI 퀀트 백테스트 및 SLSQP 가중치 최적화 엔진 실행 중... (약 5~10초 소요)');
         
-        // Wait 500ms to allow UI render of loading spinner
-        setTimeout(() => {
-            try {
-                const totalPoints = data.length;
-                const evalPoints = [];
-                const step = 20; // 20 trading days ~ 1 month
-                const warmUpPeriod = totalPoints > 220 ? 200 : 30;
-                const startIdx = Math.max(warmUpPeriod, totalPoints - 250);
-                const endIdx = totalPoints - 21; // Save 20 days for subsequent return calculation
+        try {
+            // Attempt to fetch results from the python quant_optimizer via server proxy
+            const response = await fetch(`${API_BASE}/api/optimize`);
+            if (response.ok) {
+                const res = await response.json();
+                optimizationResults = res;
                 
-                for (let i = startIdx; i <= endIdx; i += step) {
-                    const return1m = (data[i + 20].close - data[i].close) / data[i].close;
-                    
-                    // Precompute technical indicators scores at index i
-                    const analysis = analyzeTechnicals(currentTicker, i);
-                    
-                    const scoreMA = analysis.ma.score;
-                    const scoreTech = (analysis.rsi.score + analysis.vol.score) / 2;
-                    const scoreNews = analysis.newsScore;
-                    const scoreFG = analysis.fgScore;
-                    
-                    // Ideal score calculation (R_i return percentage)
-                    const pct = return1m * 100;
-                    const ideal = Math.min(Math.max(Math.round(50 + pct * 5.0), 0), 100);
-                    
-                    evalPoints.push({
-                        ma: scoreMA,
-                        tech: scoreTech,
-                        news: scoreNews,
-                        fg: scoreFG,
-                        ideal: ideal,
-                        pct: pct
-                    });
-                }
+                // 1. Update stats card in sidebar
+                document.querySelector('#opt-val-mae').parentElement.querySelector('.opt-stat-label').innerText = '최적 전략 수익률';
+                document.getElementById('opt-val-mae').innerText = `${(res.metrics.strategy_return * 100).toFixed(1)}%`;
                 
-                if (evalPoints.length === 0) {
-                    throw new Error('평가할 수 있는 백테스트 구간이 부족합니다.');
-                }
+                document.querySelector('#opt-val-accuracy').parentElement.querySelector('.opt-stat-label').innerText = '전략 최대 낙폭 (MDD)';
+                document.getElementById('opt-val-accuracy').innerText = `${(res.metrics.strategy_mdd * 100).toFixed(1)}%`;
                 
-                // 1. Calculate current MAE before optimization
-                let currentErrorSum = 0;
-                let currentCorrect = 0;
-                evalPoints.forEach(pt => {
-                    const currentCalculated = (weights.ma * pt.ma + weights.tech * pt.tech + weights.news * pt.news + weights.fg * pt.fg) / 100;
-                    currentErrorSum += Math.abs(currentCalculated - pt.ideal);
-                    
-                    // Hit rate check:
-                    const isCalculatedPositive = currentCalculated > 53;
-                    const isCalculatedNegative = currentCalculated < 47;
-                    const isCalculatedNeutral = !isCalculatedPositive && !isCalculatedNegative;
-                    
-                    const isReturnPositive = pt.pct > 0.5;
-                    const isReturnNegative = pt.pct < -0.5;
-                    const isReturnNeutral = pt.pct >= -0.5 && pt.pct <= 0.5;
-                    
-                    if ((isCalculatedPositive && isReturnPositive) || 
-                        (isCalculatedNegative && isReturnNegative) || 
-                        (isCalculatedNeutral && isReturnNeutral)) {
-                        currentCorrect++;
-                    }
-                });
-                const currentMAE = currentErrorSum / evalPoints.length;
+                document.getElementById('opt-val-proposal').innerText = `ROE ${Math.round(res.opt_weights.roe*100)}%, MACD ${Math.round(res.opt_weights.macd*100)}%, VOL ${Math.round(res.opt_weights.vol*100)}%`;
                 
-                // 2. Perform Grid Search (1,771 iterations)
-                let bestMAE = Infinity;
-                let bestW = { ma: 40, tech: 25, news: 20, fg: 15 };
+                // Show report button
+                const btnReport = document.getElementById('btn-show-opt-results');
+                if (btnReport) btnReport.classList.remove('hidden');
                 
-                for (let w_ma = 0; w_ma <= 100; w_ma += 5) {
-                    for (let w_tech = 0; w_tech <= 100 - w_ma; w_tech += 5) {
-                        for (let w_news = 0; w_news <= 100 - w_ma - w_tech; w_news += 5) {
-                            const w_fg = 100 - w_ma - w_tech - w_news;
-                            
-                            let errorSum = 0;
-                            evalPoints.forEach(pt => {
-                                const calculated = (w_ma * pt.ma + w_tech * pt.tech + w_news * pt.news + w_fg * pt.fg) / 100;
-                                errorSum += Math.abs(calculated - pt.ideal);
-                            });
-                            const mae = errorSum / evalPoints.length;
-                            
-                            if (mae < bestMAE) {
-                                bestMAE = mae;
-                                bestW = { ma: w_ma, tech: w_tech, news: w_news, fg: w_fg };
-                            }
-                        }
-                    }
-                }
+                // 2. Map 7 weights to dashboard 4 sliders (PER+PBR+ROE+RSI+VOL is Tech, MA+MACD is MA, news and FG set to 0)
+                const optMa = Math.round((res.opt_weights.ma + res.opt_weights.macd) * 100);
+                const optTech = 100 - optMa;
+                weights.ma = optMa;
+                weights.tech = optTech;
+                weights.news = 0;
+                weights.fg = 0;
                 
-                // 3. Recalculate hit rate/accuracy with optimized weights
-                let optimizedCorrect = 0;
-                evalPoints.forEach(pt => {
-                    const optCalculated = (bestW.ma * pt.ma + bestW.tech * pt.tech + bestW.news * pt.news + bestW.fg * pt.fg) / 100;
-                    const isCalculatedPositive = optCalculated > 53;
-                    const isCalculatedNegative = optCalculated < 47;
-                    const isCalculatedNeutral = !isCalculatedPositive && !isCalculatedNegative;
-                    
-                    const isReturnPositive = pt.pct > 0.5;
-                    const isReturnNegative = pt.pct < -0.5;
-                    const isReturnNeutral = pt.pct >= -0.5 && pt.pct <= 0.5;
-                    
-                    if ((isCalculatedPositive && isReturnPositive) || 
-                        (isCalculatedNegative && isReturnNegative) || 
-                        (isCalculatedNeutral && isReturnNeutral)) {
-                        optimizedCorrect++;
-                    }
-                });
-                const optimizedAccuracy = (optimizedCorrect / evalPoints.length) * 100;
+                // Update sliders
+                document.getElementById('slider-w-ma').value = weights.ma;
+                document.getElementById('val-w-ma').innerText = `${weights.ma}%`;
+                document.getElementById('slider-w-tech').value = weights.tech;
+                document.getElementById('val-w-tech').innerText = `${weights.tech}%`;
+                document.getElementById('slider-w-news').value = 0;
+                document.getElementById('val-w-news').innerText = '0%';
+                document.getElementById('slider-w-fg').value = 0;
+                document.getElementById('val-w-fg').innerText = '0%';
                 
-                // 4. Update UI Stats panel
-                document.getElementById('opt-val-mae').innerHTML = `${bestMAE.toFixed(1)} <span style="font-size: 10px; color: var(--text-dark);">(이전: ${currentMAE.toFixed(1)})</span>`;
-                document.getElementById('opt-val-accuracy').innerText = `${optimizedAccuracy.toFixed(1)}%`;
-                document.getElementById('opt-val-proposal').innerText = `이동평균 ${bestW.ma}%, 보조 ${bestW.tech}%, 뉴스 ${bestW.news}%, 공포 ${bestW.fg}%`;
-                
-                // 5. Apply the optimized weights to global state & sliders
-                weights = bestW;
-                
-                document.getElementById('slider-w-ma').value = bestW.ma;
-                document.getElementById('val-w-ma').innerText = `${bestW.ma}%`;
-                document.getElementById('slider-w-tech').value = bestW.tech;
-                document.getElementById('val-w-tech').innerText = `${bestW.tech}%`;
-                document.getElementById('slider-w-news').value = bestW.news;
-                document.getElementById('val-w-news').innerText = `${bestW.news}%`;
-                document.getElementById('slider-w-fg').value = bestW.fg;
-                document.getElementById('val-w-fg').innerText = `${bestW.fg}%`;
-                
-                // 6. Refresh active dashboard components
+                // Refresh dashboard buy probability
                 updateDashboardUI();
                 
-                showToast(`알고리즘 최적화 완료! 오차가 ${currentMAE.toFixed(1)}에서 ${bestMAE.toFixed(1)}로 감소했습니다.`);
+                showToast('알고리즘 최적화 완료! 최적화 보고서 단추를 클릭해 그래프를 확인하세요.');
                 
-            } catch (err) {
-                console.error('[AlphaRadar] Optimization failed:', err.message);
-                showToast(`최적화 오류: ${err.message}`);
-            } finally {
-                btn.classList.remove('loading');
-                btn.innerHTML = '<i class="fa-solid fa-play"></i> 최적화 실행';
+                // Automatically open report modal
+                openOptimizationResultsModal();
+                return;
+            } else {
+                throw new Error('서버 응답 오류');
             }
-        }, 500);
+        } catch (e) {
+            console.warn('[AlphaRadar] Backend optimizer offline, running client-side fallback:', e.message);
+            // Fallback to client-side grid search
+            runClientSideFallback();
+        } finally {
+            btn.classList.remove('loading');
+            btn.innerHTML = '<i class="fa-solid fa-play"></i> 최적화 실행';
+        }
+    }
+
+    // Modal populate and open logic
+    function openOptimizationResultsModal() {
+        if (!optimizationResults) return;
+        const res = optimizationResults;
+        
+        // 1. Populate chart
+        document.getElementById('opt-chart-img').src = `${API_BASE}/portfolio_performance.png?t=${Date.now()}`;
+        
+        // 2. Populate weights
+        const weightsList = document.getElementById('opt-weights-list');
+        weightsList.innerHTML = `
+            <div style="display: flex; justify-content: space-between; padding-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.04);"><span>PER (주가수익비율) 가중치:</span><span style="font-weight: 700; color: var(--color-primary);">${(res.opt_weights.per * 100).toFixed(2)}%</span></div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.04);"><span>PBR (주가순자산비율) 가중치:</span><span style="font-weight: 700; color: var(--color-primary);">${(res.opt_weights.pbr * 100).toFixed(2)}%</span></div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.04);"><span>ROE (자기자본이익률) 가중치:</span><span style="font-weight: 700; color: #fff;">${(res.opt_weights.roe * 100).toFixed(2)}%</span></div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.04);"><span>RSI (상대강도지수) 가중치:</span><span style="font-weight: 700; color: var(--color-primary);">${(res.opt_weights.rsi * 100).toFixed(2)}%</span></div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.04);"><span>MACD (추세 모멘텀) 가중치:</span><span style="font-weight: 700; color: #fff;">${(res.opt_weights.macd * 100).toFixed(2)}%</span></div>
+            <div style="display: flex; justify-content: space-between; padding-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.04);"><span>MA Trend (이평선 배열) 가중치:</span><span style="font-weight: 700; color: #fff;">${(res.opt_weights.ma * 100).toFixed(2)}%</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>Volume Breakout (거래량 돌파) 가중치:</span><span style="font-weight: 700; color: #fff;">${(res.opt_weights.vol * 100).toFixed(2)}%</span></div>
+        `;
+        
+        // 3. Populate metrics table
+        const metricsBody = document.getElementById('opt-metrics-table-body');
+        metricsBody.innerHTML = `
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                <td style="padding: 6px;">누적 수익률 (Return)</td>
+                <td style="padding: 6px; text-align: right; font-weight: 700; color: var(--color-up); font-family: var(--font-mono);">${(res.metrics.strategy_return * 100).toFixed(2)}%</td>
+                <td style="padding: 6px; text-align: right; font-family: var(--font-mono);">${(res.metrics.benchmark_return * 100).toFixed(2)}%</td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                <td style="padding: 6px;">최대 낙폭 (MDD)</td>
+                <td style="padding: 6px; text-align: right; font-weight: 700; color: var(--color-down); font-family: var(--font-mono);">${(res.metrics.strategy_mdd * 100).toFixed(2)}%</td>
+                <td style="padding: 6px; text-align: right; font-family: var(--font-mono);">${(res.metrics.benchmark_mdd * 100).toFixed(2)}%</td>
+            </tr>
+            <tr>
+                <td style="padding: 6px;">수익률 / MDD 비율</td>
+                <td style="padding: 6px; text-align: right; font-weight: 700; color: var(--color-gold); font-family: var(--font-mono);">${(res.metrics.strategy_return / (res.metrics.strategy_mdd + 1e-10)).toFixed(2)}</td>
+                <td style="padding: 6px; text-align: right; font-family: var(--font-mono);">${(res.metrics.benchmark_return / (res.metrics.benchmark_mdd + 1e-10)).toFixed(2)}</td>
+            </tr>
+        `;
+        
+        // 4. Populate recommendations
+        const recsBody = document.getElementById('opt-recommendations-table-body');
+        recsBody.innerHTML = '';
+        res.recommendations.forEach((rec, idx) => {
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+            row.innerHTML = `
+                <td style="padding: 6px 10px; font-weight: 700; color: var(--color-primary);">${idx + 1}</td>
+                <td style="padding: 6px 10px; font-family: var(--font-mono); font-weight: 700; color: #fff;">${rec.Ticker}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 700; color: var(--color-gold);">${rec.Score.toFixed(1)}</td>
+                <td style="padding: 6px 10px; text-align: right; font-family: var(--font-mono);">$${rec.Price.toFixed(2)}</td>
+                <td style="padding: 6px 10px; text-align: right; font-family: var(--font-mono);">${rec.PER.toFixed(1)}</td>
+                <td style="padding: 6px 10px; text-align: right; font-family: var(--font-mono);">${rec.PBR.toFixed(2)}</td>
+                <td style="padding: 6px 10px; text-align: right; font-family: var(--font-mono);">${rec.ROE.toFixed(1)}%</td>
+            `;
+            recsBody.appendChild(row);
+        });
+        
+        // Show modal
+        const resultsModal = document.getElementById('opt-results-modal');
+        resultsModal.classList.add('show');
+        
+        // Close event
+        document.getElementById('close-opt-modal').onclick = () => {
+            resultsModal.classList.remove('show');
+        };
+        resultsModal.onclick = (e) => {
+            if (e.target === resultsModal) {
+                resultsModal.classList.remove('show');
+            }
+        };
+    }
+
+    // Bind optimizer results modal button
+    const btnShowOptResults = document.getElementById('btn-show-opt-results');
+    if (btnShowOptResults) {
+        btnShowOptResults.addEventListener('click', openOptimizationResultsModal);
+    }
+
+    function runClientSideFallback() {
+        const data = historicalData[currentTicker];
+        if (!data || data.length < 40) return;
+        
+        const totalPoints = data.length;
+        const evalPoints = [];
+        const step = 20; // 20 trading days ~ 1 month
+        const warmUpPeriod = totalPoints > 220 ? 200 : 30;
+        const startIdx = Math.max(warmUpPeriod, totalPoints - 250);
+        const endIdx = totalPoints - 21; // Save 20 days for subsequent return calculation
+        
+        for (let i = startIdx; i <= endIdx; i += step) {
+            const return1m = (data[i + 20].close - data[i].close) / data[i].close;
+            const analysis = analyzeTechnicals(currentTicker, i);
+            
+            const scoreMA = analysis.ma.score;
+            const scoreTech = (analysis.rsi.score + analysis.vol.score) / 2;
+            const scoreNews = analysis.newsScore;
+            const scoreFG = analysis.fgScore;
+            
+            const pct = return1m * 100;
+            const ideal = Math.min(Math.max(Math.round(50 + pct * 5.0), 0), 100);
+            
+            evalPoints.push({
+                ma: scoreMA,
+                tech: scoreTech,
+                news: scoreNews,
+                fg: scoreFG,
+                ideal: ideal,
+                pct: pct
+            });
+        }
+        
+        if (evalPoints.length === 0) return;
+        
+        let currentErrorSum = 0;
+        let currentCorrect = 0;
+        evalPoints.forEach(pt => {
+            const currentCalculated = (weights.ma * pt.ma + weights.tech * pt.tech + weights.news * pt.news + weights.fg * pt.fg) / 100;
+            currentErrorSum += Math.abs(currentCalculated - pt.ideal);
+            
+            const isCalculatedPositive = currentCalculated > 53;
+            const isCalculatedNegative = currentCalculated < 47;
+            const isCalculatedNeutral = !isCalculatedPositive && !isCalculatedNegative;
+            
+            const isReturnPositive = pt.pct > 0.5;
+            const isReturnNegative = pt.pct < -0.5;
+            const isReturnNeutral = pt.pct >= -0.5 && pt.pct <= 0.5;
+            
+            if ((isCalculatedPositive && isReturnPositive) || 
+                (isCalculatedNegative && isReturnNegative) || 
+                (isCalculatedNeutral && isReturnNeutral)) {
+                currentCorrect++;
+            }
+        });
+        const currentMAE = currentErrorSum / evalPoints.length;
+        
+        let bestMAE = Infinity;
+        let bestW = { ma: 40, tech: 25, news: 20, fg: 15 };
+        
+        for (let w_ma = 0; w_ma <= 100; w_ma += 5) {
+            for (let w_tech = 0; w_tech <= 100 - w_ma; w_tech += 5) {
+                for (let w_news = 0; w_news <= 100 - w_ma - w_tech; w_news += 5) {
+                    const w_fg = 100 - w_ma - w_tech - w_news;
+                    
+                    let errorSum = 0;
+                    evalPoints.forEach(pt => {
+                        const calculated = (w_ma * pt.ma + w_tech * pt.tech + w_news * pt.news + w_fg * pt.fg) / 100;
+                        errorSum += Math.abs(calculated - pt.ideal);
+                    });
+                    const mae = errorSum / evalPoints.length;
+                    
+                    if (mae < bestMAE) {
+                        bestMAE = mae;
+                        bestW = { ma: w_ma, tech: w_tech, news: w_news, fg: w_fg };
+                    }
+                }
+            }
+        }
+        
+        let optimizedCorrect = 0;
+        evalPoints.forEach(pt => {
+            const optCalculated = (bestW.ma * pt.ma + bestW.tech * pt.tech + bestW.news * pt.news + bestW.fg * pt.fg) / 100;
+            const isCalculatedPositive = optCalculated > 53;
+            const isCalculatedNegative = optCalculated < 47;
+            const isCalculatedNeutral = !isCalculatedPositive && !isCalculatedNegative;
+            
+            const isReturnPositive = pt.pct > 0.5;
+            const isReturnNegative = pt.pct < -0.5;
+            const isReturnNeutral = pt.pct >= -0.5 && pt.pct <= 0.5;
+            
+            if ((isCalculatedPositive && isReturnPositive) || 
+                (isCalculatedNegative && isReturnNegative) || 
+                (isCalculatedNeutral && isReturnNeutral)) {
+                optimizedCorrect++;
+            }
+        });
+        const optimizedAccuracy = (optimizedCorrect / evalPoints.length) * 100;
+        
+        document.getElementById('opt-val-mae').innerHTML = `${bestMAE.toFixed(1)} <span style="font-size: 10px; color: var(--text-dark);">(이전: ${currentMAE.toFixed(1)})</span>`;
+        document.getElementById('opt-val-accuracy').innerText = `${optimizedAccuracy.toFixed(1)}%`;
+        document.getElementById('opt-val-proposal').innerText = `이동평균 ${bestW.ma}%, 보조 ${bestW.tech}%, 뉴스 ${bestW.news}%, 공포 ${bestW.fg}%`;
+        
+        weights = bestW;
+        
+        document.getElementById('slider-w-ma').value = bestW.ma;
+        document.getElementById('val-w-ma').innerText = `${bestW.ma}%`;
+        document.getElementById('slider-w-tech').value = bestW.tech;
+        document.getElementById('val-w-tech').innerText = `${bestW.tech}%`;
+        document.getElementById('slider-w-news').value = bestW.news;
+        document.getElementById('val-w-news').innerText = `${bestW.news}%`;
+        document.getElementById('slider-w-fg').value = bestW.fg;
+        document.getElementById('val-w-fg').innerText = `${bestW.fg}%`;
+        
+        updateDashboardUI();
+        showToast(`로컬 최적화 완료! 오차가 ${currentMAE.toFixed(1)}에서 ${bestMAE.toFixed(1)}로 감소했습니다.`);
     }
 
     // Initialize Dashboard UI & Fear & Greed Elements
