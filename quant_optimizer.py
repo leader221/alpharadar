@@ -1,10 +1,10 @@
 import os
+import requests
 import socket
 socket.setdefaulttimeout(15) # Force global socket timeout to prevent network hangs
 import datetime
 import numpy as np
 import pandas as pd
-import yfinance as yf
 import matplotlib
 matplotlib.use('Agg') # Set non-interactive backend
 import matplotlib.pyplot as plt
@@ -14,7 +14,7 @@ from scipy.optimize import minimize
 TICKERS = [
     'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 
     'META', 'TSLA', 'JPM', 'V', 'WMT', 
-    'DIS', 'NFLX', 'KO', 'PEP', 'COST', 'AMD'
+    'DIS', 'NFLX', 'KO', 'PEP', 'COST', 'AVGO'
 ]
 
 # Robust fallback fundamentals in case yfinance fails to return them
@@ -34,11 +34,55 @@ DEFAULT_FUNDAMENTALS = {
     'KO': {'pe': 22.0, 'pb': 10.0, 'roe': 0.40},
     'PEP': {'pe': 24.0, 'pb': 14.0, 'roe': 0.50},
     'COST': {'pe': 45.0, 'pb': 15.0, 'roe': 0.30},
-    'AMD': {'pe': 50.0, 'pb': 4.5, 'roe': 0.08}
+    'AVGO': {'pe': 28.0, 'pb': 8.5, 'roe': 0.45}
 }
 
 # Standard fallback for tickers not in the above list
 GLOBAL_FALLBACK = {'pe': 25.0, 'pb': 4.0, 'roe': 0.15}
+
+def download_history_direct(ticker):
+    """
+    Directly fetches 3y daily chart data from Yahoo Finance API using requests,
+    bypassing yfinance library completely to avoid deadlock/hang bugs.
+    Uses Connection: close header to prevent tarpit pooling.
+    """
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=3y&interval=1d"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Connection': 'close'
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=8)
+        if response.status_code != 200:
+            return pd.DataFrame()
+        
+        data = response.json()
+        result = data['chart']['result'][0]
+        timestamps = result['timestamp']
+        indicators = result['indicators']['quote'][0]
+        
+        # Keep list lengths matching
+        closes = indicators.get('close', [])
+        volumes = indicators.get('volume', [])
+        
+        # Fallback if adjclose exists
+        if not closes and 'adjclose' in result['indicators']:
+            closes = result['indicators']['adjclose'][0].get('adjclose', [])
+            
+        # Parse into pandas DataFrame
+        df = pd.DataFrame({
+            'Close': closes,
+            'Volume': volumes
+        }, index=pd.to_datetime(timestamps, unit='s'))
+        
+        # Fill missing values and drop invalid rows
+        df = df.dropna(subset=['Close'])
+        df['Volume'] = df['Volume'].fillna(0).astype(float)
+        
+        return df
+    except Exception as e:
+        print(f" (Error: {str(e)})", end="")
+        return pd.DataFrame()
 
 def get_fundamentals(ticker):
     """
@@ -119,32 +163,39 @@ def normalize_indicators(df, pe, pb, roe):
     Normalize all 7 indicators to a 0-100 scale.
     """
     # 1. PER (Lower is better, penalize <=0 or >50)
+    print(" [per]", end="", flush=True)
     df['score_per'] = np.where((pe > 0) & (pe <= 50), (50 - pe) * 2, 0)
     df['score_per'] = np.clip(df['score_per'], 0, 100)
     
     # 2. PBR (Lower is better, penalize <=0 or >6)
+    print("[pbr]", end="", flush=True)
     df['score_pbr'] = np.where((pb > 0) & (pb <= 6), (6 - pb) * 16.67, 0)
     df['score_pbr'] = np.clip(df['score_pbr'], 0, 100)
     
     # 3. ROE (Higher is better, ROE of 33%+ gives 100)
+    print("[roe]", end="", flush=True)
     df['score_roe'] = np.clip(roe * 300, 0, 100)
     
     # 4. RSI (Oversold < 30 gives 100, Overbought > 70 gives 0, linear in between)
+    print("[rsi]", end="", flush=True)
     rsi = calculate_rsi(df['Close'])
     df['score_rsi'] = np.where(rsi < 30, 100, 
                                np.where(rsi > 70, 0, 100 - (rsi - 30) * 2.5))
     df['score_rsi'] = np.clip(df['score_rsi'], 0, 100)
     
     # 5. MACD (Hist normalized by rolling standard deviation)
+    print("[macd]", end="", flush=True)
     _, _, hist = calculate_macd(df['Close'])
     hist_std = hist.rolling(window=20).std().fillna(1e-8)
     norm_hist = hist / hist_std
     df['score_macd'] = np.clip(50 + norm_hist * 25, 0, 100).fillna(50)
     
     # 6. Moving Average alignment score
+    print("[ma]", end="", flush=True)
     df['score_ma'] = calculate_ma_scores(df['Close'])
     
     # 7. Volume Rate (5-day volume / 20-day volume)
+    print("[vol]", end="", flush=True)
     vol_5 = df['Volume'].rolling(window=5).mean()
     vol_20 = df['Volume'].rolling(window=20).mean().fillna(1e-8)
     vol_rate = vol_5 / vol_20
@@ -152,6 +203,7 @@ def normalize_indicators(df, pe, pb, roe):
                                np.where(vol_rate > 2.0, 100, (vol_rate - 0.5) / 1.5 * 100))
     df['score_vol'] = np.clip(df['score_vol'], 0, 100).fillna(50)
     
+    print("[ret]", end="", flush=True)
     return df
 
 def calculate_portfolio_performance(data_dict, weights):
@@ -268,29 +320,36 @@ def main():
     print(f"Data period: {start_date} to {end_date}")
     print("Downloading historical prices and fundamentals...")
     
+    import time
     data_dict = {}
     fundamentals_dict = {}
     
     for ticker in TICKERS:
         print(f"  Fetching {ticker}...", end="", flush=True)
-        # Download historical daily data with threads=False to prevent multitasking thread joins hanging on Windows
-        df = yf.download(ticker, start=start_date, end=end_date, progress=False, timeout=10, threads=False)
+        # Download historical daily data using requests directly to bypass yfinance deadlocks
+        print(" (HTTP direct)...", end="", flush=True)
+        df = download_history_direct(ticker)
         if df.empty:
             print(" Failed to download history. Skipping.")
+            time.sleep(0.5)
             continue
             
+        print(" (standards)...", end="", flush=True)
         # Standardize columns to avoid MultiIndex issue if any
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
             
+        print(" (fundamentals)...", end="", flush=True)
         # Get fundamentals
         pe, pb, roe = get_fundamentals(ticker)
         fundamentals_dict[ticker] = {'pe': pe, 'pb': pb, 'roe': roe}
         
+        print(" (indicators)...", end="", flush=True)
         # Process and normalize indicators
         df = normalize_indicators(df, pe, pb, roe)
         data_dict[ticker] = df
         print(f" Done. (PE: {pe:.1f}, PB: {pb:.1f}, ROE: {roe:.2f})")
+        time.sleep(0.5) # Evasion delay to avoid API block
         
     if len(data_dict) < len(TICKERS):
         # Update valid tickers list
@@ -387,16 +446,36 @@ def main():
         df = data_dict[ticker]
         latest_row = df.iloc[-1]
         
-        # Calculate current composite score
-        score = (
-            opt_weights[0] * latest_row['score_per'] +
-            opt_weights[1] * latest_row['score_pbr'] +
-            opt_weights[2] * latest_row['score_roe'] +
-            opt_weights[3] * latest_row['score_rsi'] +
-            opt_weights[4] * latest_row['score_macd'] +
-            opt_weights[5] * latest_row['score_ma'] +
-            opt_weights[6] * latest_row['score_vol']
+        # Calculate daily composite score history to compute trend and volatility
+        df['composite_score'] = (
+            opt_weights[0] * df['score_per'] +
+            opt_weights[1] * df['score_pbr'] +
+            opt_weights[2] * df['score_roe'] +
+            opt_weights[3] * df['score_rsi'] +
+            opt_weights[4] * df['score_macd'] +
+            opt_weights[5] * df['score_ma'] +
+            opt_weights[6] * df['score_vol']
         )
+        
+        current_score = df['composite_score'].iloc[-1]
+        
+        # 2 weeks = 10 trading days
+        if len(df) >= 11:
+            score_2w = df['composite_score'].iloc[-11]
+            change_2w = current_score - score_2w
+            vol_2w = df['composite_score'].iloc[-10:].std()
+        else:
+            change_2w = 0.0
+            vol_2w = 0.0
+            
+        # 1 month = 20 trading days
+        if len(df) >= 21:
+            score_1m = df['composite_score'].iloc[-21]
+            change_1m = current_score - score_1m
+            vol_1m = df['composite_score'].iloc[-20:].std()
+        else:
+            change_1m = 0.0
+            vol_1m = 0.0
         
         close_price = latest_row['Close']
         pe = fundamentals_dict[ticker]['pe']
@@ -405,11 +484,15 @@ def main():
         
         recommendations.append({
             'Ticker': str(ticker),
-            'Score': float(score),
+            'Score': float(current_score),
             'Price ($)': float(close_price),
             'PER': float(pe),
             'PBR': float(pb),
-            'ROE (%)': float(roe * 100.0)
+            'ROE (%)': float(roe * 100.0),
+            'Change2W': float(change_2w),
+            'Change1M': float(change_1m),
+            'Vol2W': float(vol_2w),
+            'Vol1M': float(vol_1m)
         })
         
     rec_df = pd.DataFrame(recommendations)
@@ -469,7 +552,11 @@ def main():
                 'Price': float(r['Price ($)']),
                 'PER': float(r['PER']),
                 'PBR': float(r['PBR']),
-                'ROE': float(r['ROE (%)'])
+                'ROE': float(r['ROE (%)']),
+                'Change2W': float(r['Change2W']),
+                'Change1M': float(r['Change1M']),
+                'Vol2W': float(r['Vol2W']),
+                'Vol1M': float(r['Vol1M'])
             } for r in recommendations
         ]
     }

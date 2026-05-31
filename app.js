@@ -2150,6 +2150,15 @@ document.addEventListener('DOMContentLoaded', () => {
         res.recommendations.forEach((rec, idx) => {
             const row = document.createElement('tr');
             row.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+            
+            const formatTrend = (change, vol) => {
+                if (change === undefined || vol === undefined) return `<span style="color: var(--text-muted);">-</span>`;
+                const sign = change > 0 ? '▲' : change < 0 ? '▼' : '';
+                const color = change > 0 ? 'var(--color-up, #10b981)' : change < 0 ? 'var(--color-down, #ef4444)' : 'var(--text-muted)';
+                const changeText = change === 0 ? '-' : sign + Math.abs(change).toFixed(1);
+                return `<span style="color: ${color}; font-weight: 700; font-family: var(--font-mono);">${changeText}</span> <span style="font-size: 10px; color: var(--text-muted); opacity: 0.85;">(σ:${vol.toFixed(1)})</span>`;
+            };
+            
             row.innerHTML = `
                 <td style="padding: 6px 10px; font-weight: 700; color: var(--color-primary);">${idx + 1}</td>
                 <td style="padding: 6px 10px; font-family: var(--font-mono); font-weight: 700; color: #fff;">${rec.Ticker}</td>
@@ -2158,6 +2167,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="padding: 6px 10px; text-align: right; font-family: var(--font-mono);">${rec.PER.toFixed(1)}</td>
                 <td style="padding: 6px 10px; text-align: right; font-family: var(--font-mono);">${rec.PBR.toFixed(2)}</td>
                 <td style="padding: 6px 10px; text-align: right; font-family: var(--font-mono);">${rec.ROE.toFixed(1)}%</td>
+                <td style="padding: 6px 10px; text-align: right; font-size: 10.5px; white-space: nowrap;">${formatTrend(rec.Change2W, rec.Vol2W)}</td>
+                <td style="padding: 6px 10px; text-align: right; font-size: 10.5px; white-space: nowrap;">${formatTrend(rec.Change1M, rec.Vol1M)}</td>
             `;
             recsBody.appendChild(row);
         });
