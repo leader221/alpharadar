@@ -436,8 +436,9 @@ async function initHistoricalData() {
     const tickers = Object.keys(tickerMetadata);
     
     for (const ticker of tickers) {
-        const meta = tickerMetadata[ticker];
-        const yahooSymbol = meta.currency === 'KRW' ? `${meta.symbol}.KS` : meta.symbol;
+        const yahooSymbol = (meta.currency === 'KRW' && !meta.symbol.endsWith('.KS') && !meta.symbol.endsWith('.KQ')) 
+            ? `${meta.symbol}.KS` 
+            : meta.symbol;
         let loaded = false;
         
         try {
@@ -721,8 +722,10 @@ function analyzeTechnicals(ticker, idx = null) {
     // 4. Volume Trend
     let volVerdict = 'NORMAL';
     let volScore = 50;
-    const last5DaysVol = volumes.slice(-5).reduce((a, b) => a + b, 0) / 5;
-    const last20DaysVol = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+    const startIdx5 = Math.max(0, idx - 4);
+    const startIdx20 = Math.max(0, idx - 19);
+    const last5DaysVol = volumes.slice(startIdx5, idx + 1).reduce((a, b) => a + b, 0) / Math.max(1, idx - startIdx5 + 1);
+    const last20DaysVol = volumes.slice(startIdx20, idx + 1).reduce((a, b) => a + b, 0) / Math.max(1, idx - startIdx20 + 1);
     const volRatio = last5DaysVol / last20DaysVol;
     
     if (volRatio > 1.25) {
@@ -1087,6 +1090,22 @@ function updateDashboardUI() {
     updateIndicatorPanel('rsi', analysis.rsi);
     updateIndicatorPanel('macd', analysis.macd);
     updateIndicatorPanel('vol', analysis.vol);
+    
+    // Update Volume dynamic description text based on real-world calculations
+    const descVolEl = document.getElementById('desc-vol');
+    if (descVolEl && analysis.vol) {
+        const volPctVal = parseFloat(analysis.vol.valueText.replace(/[^0-9.]/g, ''));
+        if (!isNaN(volPctVal)) {
+            const ratioDiff = volPctVal - 100;
+            if (ratioDiff > 0) {
+                descVolEl.innerText = `최근 5일 평균 거래량이 20일 평균 대비 ${ratioDiff.toFixed(0)}% 증가(활성) 상태입니다.`;
+            } else if (ratioDiff < 0) {
+                descVolEl.innerText = `최근 5일 평균 거래량이 20일 평균 대비 ${Math.abs(ratioDiff).toFixed(0)}% 감소(침체) 상태입니다.`;
+            } else {
+                descVolEl.innerText = `최근 5일 평균 거래량이 20일 평균과 비슷한 보합 상태입니다.`;
+            }
+        }
+    }
     
     // Render Buy Probability gauge
     const ring = document.getElementById('buy-probability-ring');
@@ -1506,6 +1525,21 @@ async function fetchRealTimeQuotes() {
                     meta.runtimeHigh = high;
                     meta.runtimeLow = low;
                     meta.regularMarketChangePercent = quote.regularMarketChangePercent;
+                    
+                    // Update Agent Flow data dynamically based on real-time price tick direction
+                    const changePct = quote.regularMarketChangePercent || 0;
+                    const baseVal = meta.currency === 'KRW' ? 150.0 : 12.0;
+                    const flow = agentFlowData[ticker];
+                    if (flow) {
+                        flow.individual += (changePct * 0.15 + (Math.random() - 0.52)) * (baseVal * 0.04);
+                        flow.institutional += (-changePct * 0.1 + (Math.random() - 0.45)) * (baseVal * 0.04);
+                        flow.foreign += (changePct * 0.2 + (Math.random() - 0.42)) * (baseVal * 0.04);
+                        
+                        const limit = baseVal * 3.5;
+                        flow.individual = Math.min(Math.max(flow.individual, -limit), limit);
+                        flow.institutional = Math.min(Math.max(flow.institutional, -limit), limit);
+                        flow.foreign = Math.min(Math.max(flow.foreign, -limit), limit);
+                    }
                 }
             });
             console.log('[AlphaRadar] Successfully pulled actual quotes from local proxy server');
