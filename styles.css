@@ -1197,7 +1197,7 @@ body {
         width: 100%;
         border-right: none;
         border-bottom: 1px solid var(--border-color);
-        padding: 12px 16px;
+        padding: 16px;
     }
     .brand-logo {
         display: none !important;
@@ -1206,33 +1206,22 @@ body {
         margin: 4px 0 12px 0;
     }
     .ticker-nav {
-        max-height: none;
-        overflow-y: visible;
+        max-height: 220px; /* Fixed height for vertical scroll on mobile */
+        overflow-y: auto;
         margin-bottom: 4px;
-        padding-right: 0;
+        padding-right: 4px;
     }
     .ticker-group {
         display: flex !important;
-        flex-direction: row !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
-        gap: 8px !important;
-        padding-bottom: 8px;
-        -webkit-overflow-scrolling: touch;
-    }
-    /* Hide scrollbar for Chrome, Safari and Opera */
-    .ticker-group::-webkit-scrollbar {
-        display: none;
-    }
-    /* Hide scrollbar for IE, Edge and Firefox */
-    .ticker-group {
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;  /* Firefox */
+        flex-direction: column !important;
+        overflow-x: visible !important;
+        overflow-y: visible !important;
+        gap: 6px !important;
+        padding-bottom: 0 !important;
     }
     .nav-tab {
         flex-shrink: 0;
-        width: auto !important;
-        min-width: 150px;
+        width: 100% !important;
         transform: none !important; /* Disable translateX hover animation on mobile */
     }
     .nav-tab:hover {

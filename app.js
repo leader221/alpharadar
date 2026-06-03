@@ -1960,18 +1960,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             
-            const selectItem = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+            item.addEventListener('click', () => {
                 addTickerFromSearch(symbol, quote);
                 searchResults.classList.add('hidden');
                 searchInput.value = '';
                 searchClearBtn.classList.add('hidden');
-            };
-            
-            item.addEventListener('click', selectItem);
-            item.addEventListener('touchstart', selectItem, { passive: false });
-            item.addEventListener('mousedown', selectItem);
+            });
             
             searchResults.appendChild(item);
         });
@@ -1997,6 +1991,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             updateDashboardUI();
             showToast(`${symbol} 종목으로 전환합니다.`);
+            
+            // Scroll to dashboard on mobile devices for immediate feedback
+            if (window.innerWidth <= 768) {
+                const mainHeader = document.querySelector('.main-header');
+                if (mainHeader) {
+                    mainHeader.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
             return;
         }
         
@@ -2104,6 +2106,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             updateDashboardUI();
             showToast(`${meta.name} 종목이 추가되었습니다!`);
+            
+            // Scroll to dashboard on mobile devices for immediate feedback
+            if (window.innerWidth <= 768) {
+                const mainHeader = document.querySelector('.main-header');
+                if (mainHeader) {
+                    mainHeader.scrollIntoView({ behavior: 'smooth' });
+                }
+            }
             
         } catch (err) {
             console.error('[AlphaRadar] Failed to add ticker:', err.message);
