@@ -50,9 +50,7 @@ let portfolio = {
 const USDKRW = 1380; // KRW exchange rate for mock portfolio USD calculations
 
 // Determine backend API host dynamically to support file:///, server, and remote hosting
-const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : 
-                 (window.location.hostname.includes('onrender.com') || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? '' : 
-                 'http://192.168.35.243:3000';
+const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : '';
 
 function formatMoney(value, currency) {
     if (currency === 'KRW') {
