@@ -839,63 +839,27 @@ function updateStockChart(ticker, days) {
     
     const ctx = document.getElementById('mainStockChart').getContext('2d');
     
+    if (stockChart) {
+        stockChart.destroy();
+    }
+    
     // Colors depending on ticker type
     let themeColor = 'rgba(0, 82, 255, 1)';
-    if (ticker === 'SPY') themeColor = 'rgba(255, 92, 0, 1)';
-    if (ticker === 'SCHD') themeColor = 'rgba(16, 185, 129, 1)';
-    if (ticker === 'JEPQ') themeColor = 'rgba(139, 92, 246, 1)';
-    if (ticker === 'HYNIX') themeColor = 'rgba(230, 0, 18, 1)';
-    if (ticker === 'HYUNDAI') themeColor = 'rgba(0, 44, 95, 1)';
-    if (ticker === 'SKT') themeColor = 'rgba(255, 92, 0, 1)';
-    if (ticker === 'HANA') themeColor = 'rgba(0, 135, 122, 1)';
-    if (ticker === 'GOOGL') themeColor = 'rgba(66, 133, 244, 1)';
-    if (ticker === 'AMZN') themeColor = 'rgba(255, 153, 0, 1)';
+    let gradientStart = 'rgba(0, 82, 255, 0.22)';
+    if (ticker === 'SPY') { themeColor = 'rgba(255, 92, 0, 1)'; gradientStart = 'rgba(255, 92, 0, 0.22)'; }
+    if (ticker === 'SCHD') { themeColor = 'rgba(16, 185, 129, 1)'; gradientStart = 'rgba(16, 185, 129, 0.22)'; }
+    if (ticker === 'JEPQ') { themeColor = 'rgba(139, 92, 246, 1)'; gradientStart = 'rgba(139, 92, 246, 0.22)'; }
+    if (ticker === 'HYNIX') { themeColor = 'rgba(230, 0, 18, 1)'; gradientStart = 'rgba(230, 0, 18, 0.22)'; }
+    if (ticker === 'HYUNDAI') { themeColor = 'rgba(0, 44, 95, 1)'; gradientStart = 'rgba(0, 44, 95, 0.22)'; }
+    if (ticker === 'SKT') { themeColor = 'rgba(255, 92, 0, 1)'; gradientStart = 'rgba(255, 92, 0, 0.22)'; }
+    if (ticker === 'HANA') { themeColor = 'rgba(0, 135, 122, 1)'; gradientStart = 'rgba(0, 135, 122, 0.22)'; }
+    if (ticker === 'GOOGL') { themeColor = 'rgba(66, 133, 244, 1)'; gradientStart = 'rgba(66, 133, 244, 0.22)'; }
+    if (ticker === 'AMZN') { themeColor = 'rgba(255, 153, 0, 1)'; gradientStart = 'rgba(255, 153, 0, 0.22)'; }
     
     // Create modern gradients for chart aesthetic
     const priceGradient = ctx.createLinearGradient(0, 0, 0, 300);
-    priceGradient.addColorStop(0, themeColor.replace('1)', '0.22)'));
-    priceGradient.addColorStop(1, themeColor.replace('1)', '0.0)'));
-    
-    if (stockChart) {
-        // Reuse existing chart - update labels, datasets, and settings dynamically to prevent mobile dimensions bugs
-        stockChart.data.labels = labels;
-        stockChart.data.datasets[0].label = '종가 (Close Price)';
-        stockChart.data.datasets[0].data = prices;
-        stockChart.data.datasets[0].borderColor = themeColor;
-        stockChart.data.datasets[0].pointHoverBackgroundColor = themeColor;
-        stockChart.data.datasets[0].backgroundColor = priceGradient;
-        
-        stockChart.data.datasets[1].data = sma20;
-        stockChart.data.datasets[2].data = sma50;
-        stockChart.data.datasets[3].data = sma200;
-        
-        stockChart.data.datasets[4].data = volumes;
-        
-        stockChart.options.scales.y.ticks.callback = function(value) {
-            const meta = tickerMetadata[ticker];
-            if (meta.currency === 'KRW') {
-                return '₩' + Math.round(value).toLocaleString();
-            }
-            return '$' + value.toFixed(1);
-        };
-        stockChart.options.scales.yVolume.max = Math.max(...volumes) * 3;
-        
-        stockChart.options.plugins.tooltip.callbacks.label = function(context) {
-            let label = context.dataset.label || '';
-            if (label) {
-                label += ': ';
-            }
-            if (context.dataset.type === 'bar') {
-                label += parseInt(context.raw).toLocaleString();
-            } else {
-                label += formatMoney(parseFloat(context.raw), tickerMetadata[ticker].currency);
-            }
-            return label;
-        };
-        
-        stockChart.update();
-        return;
-    }
+    priceGradient.addColorStop(0, gradientStart);
+    priceGradient.addColorStop(1, 'rgba(0, 82, 255, 0.0)');
     
     stockChart = new Chart(ctx, {
         type: 'line',
