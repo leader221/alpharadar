@@ -242,11 +242,11 @@ const newsSeed = {
 // Historical Price Data for each stock (Prepopulated)
 const historicalData = {};
 
-function initCustomTickers() {
-    const saved = localStorage.getItem('alpharadar_custom_tickers');
-    if (saved) {
-        try {
-            const customList = JSON.parse(saved);
+async function initCustomTickers() {
+    try {
+        const response = await fetch(`${API_BASE}/api/custom-tickers`);
+        if (response.ok) {
+            const customList = await response.json();
             customList.forEach(meta => {
                 const key = meta.symbol;
                 meta.isCustom = true; // Enforce custom flag on load
@@ -267,9 +267,9 @@ function initCustomTickers() {
                     ];
                 }
             });
-        } catch (e) {
-            console.warn('[AlphaRadar] Failed to parse custom tickers from localStorage:', e.message);
         }
+    } catch (e) {
+        console.warn('[AlphaRadar] Failed to load custom tickers from server:', e.message);
     }
 }
 
@@ -399,16 +399,13 @@ function removeTicker(symbol) {
         tab.remove();
     }
     
-    // 3. Update localStorage list
-    let saved = localStorage.getItem('alpharadar_custom_tickers');
-    if (saved) {
-        try {
-            let customList = JSON.parse(saved);
-            customList = customList.filter(item => item.symbol !== symbol);
-            localStorage.setItem('alpharadar_custom_tickers', JSON.stringify(customList));
-        } catch (e) {
-            console.error('[AlphaRadar] Failed to update localStorage custom tickers:', e.message);
-        }
+    // 3. Update server list
+    try {
+        fetch(`${API_BASE}/api/custom-tickers?symbol=${encodeURIComponent(symbol)}`, {
+            method: 'DELETE'
+        });
+    } catch (e) {
+        console.error('[AlphaRadar] Failed to delete custom ticker from server:', e.message);
     }
 
     // 4. Update localStorage list for deleted tickers
@@ -1626,16 +1623,16 @@ document.addEventListener('DOMContentLoaded', () => {
         injectTickerTab(key, tickerMetadata[key]);
     });
 
-    // 5. Load custom tickers from localStorage
-    initCustomTickers();
-    
-    // Load holdings from storage
-    loadHoldingsFromStorage();
-    
-    // Generate base mock stock records
-    initHistoricalData();
-    // Generate initial agent flow data
-    initAgentFlowData();
+    // 5. Initialize App sequentially
+    async function initializeApp() {
+        await initCustomTickers();
+        loadHoldingsFromStorage();
+        await initHistoricalData();
+        initAgentFlowData();
+        updateFearGreedUI();
+        updateDashboardUI();
+    }
+    initializeApp();
     
     // Bind chart timeframe filters
     document.querySelectorAll('.tf-btn').forEach(btn => {
@@ -2068,7 +2065,7 @@ document.addEventListener('DOMContentLoaded', () => {
             injectTickerTab(symbol, meta);
             
             // Persist to storage
-            saveCustomTickerToStorage(meta);
+            await saveCustomTickerToStorage(meta);
             
             // Switch active view
             currentTicker = symbol;
@@ -2096,7 +2093,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function saveCustomTickerToStorage(meta) {
+    async function saveCustomTickerToStorage(meta) {
         let saved = localStorage.getItem('alpharadar_custom_tickers');
         let customList = [];
         if (saved) {
@@ -2108,6 +2105,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!customList.some(item => item.symbol === meta.symbol)) {
             customList.push(meta);
             localStorage.setItem('alpharadar_custom_tickers', JSON.stringify(customList));
+        }
+
+        try {
+            await fetch(`${API_BASE}/api/custom-tickers`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(meta)
+            });
+        } catch (e) {
+            console.error('[AlphaRadar] Failed to save custom ticker to server:', e.message);
         }
     }
     

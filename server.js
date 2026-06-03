@@ -187,6 +187,75 @@ const server = http.createServer((req, res) => {
             }
         });
     }
+    // Route 5: GET/POST/DELETE custom tickers (server-shared persistence)
+    else if (pathname === '/api/custom-tickers') {
+        const filePath = path.join(__dirname, 'custom_tickers.json');
+        
+        if (req.method === 'GET') {
+            fs.readFile(filePath, 'utf8', (err, content) => {
+                res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                if (err) {
+                    res.end(JSON.stringify([]));
+                } else {
+                    res.end(content || JSON.stringify([]));
+                }
+            });
+        }
+        else if (req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+                try {
+                    const meta = JSON.parse(body);
+                    fs.readFile(filePath, 'utf8', (err, content) => {
+                        let list = [];
+                        if (!err && content) {
+                            try { list = JSON.parse(content); } catch (e) {}
+                        }
+                        if (!list.some(item => item.symbol === meta.symbol)) {
+                            list.push(meta);
+                        }
+                        fs.writeFile(filePath, JSON.stringify(list, null, 2), 'utf8', (err2) => {
+                            if (err2) {
+                                res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+                                res.end(JSON.stringify({ error: 'Failed to write custom tickers file' }));
+                                return;
+                            }
+                            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                            res.end(JSON.stringify({ success: true, list }));
+                        });
+                    });
+                } catch (e) {
+                    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+                }
+            });
+        }
+        else if (req.method === 'DELETE') {
+            const symbol = parsedUrl.query.symbol;
+            if (!symbol) {
+                res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ error: 'Query parameter symbol is required' }));
+                return;
+            }
+            fs.readFile(filePath, 'utf8', (err, content) => {
+                let list = [];
+                if (!err && content) {
+                    try { list = JSON.parse(content); } catch (e) {}
+                }
+                list = list.filter(item => item.symbol !== symbol);
+                fs.writeFile(filePath, JSON.stringify(list, null, 2), 'utf8', (err2) => {
+                    if (err2) {
+                        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+                        res.end(JSON.stringify({ error: 'Failed to write custom tickers file' }));
+                        return;
+                    }
+                    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+                    res.end(JSON.stringify({ success: true, list }));
+                });
+            });
+        }
+    }
 });
 
 server.listen(PORT, () => {
