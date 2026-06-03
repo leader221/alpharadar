@@ -456,6 +456,7 @@ async function initHistoricalData() {
     const tickers = Object.keys(tickerMetadata);
     
     for (const ticker of tickers) {
+        const meta = tickerMetadata[ticker];
         const yahooSymbol = (meta.currency === 'KRW' && !meta.symbol.endsWith('.KS') && !meta.symbol.endsWith('.KQ')) 
             ? `${meta.symbol}.KS` 
             : meta.symbol;
@@ -822,6 +823,11 @@ function calculateBuyProbability(ticker, analysis) {
 // 4. CHART RENDERING IMPLEMENTATION
 // ==========================================
 function updateStockChart(ticker, days) {
+    if (!ticker || !historicalData[ticker]) {
+        console.warn(`[AlphaRadar] No historical data for ticker: ${ticker}`);
+        return;
+    }
+    
     const data = historicalData[ticker].slice(-days);
     const labels = data.map(d => d.date);
     const prices = data.map(d => d.close);
@@ -1095,11 +1101,16 @@ function updateDashboardUI() {
             ? tMeta.regularMarketChangePercent 
             : ((miniClose - miniPrev) / miniPrev) * 100;
         
-        document.getElementById(`mini-price-${t}`).innerText = formatMoney(miniClose, tickerMetadata[t].currency);
+        const miniPriceEl = document.getElementById(`mini-price-${t}`);
+        if (miniPriceEl) {
+            miniPriceEl.innerText = formatMoney(miniClose, tickerMetadata[t].currency);
+        }
         
         const miniChangeEl = document.getElementById(`mini-change-${t}`);
-        miniChangeEl.innerText = `${miniChangePct >= 0 ? '+' : ''}${miniChangePct.toFixed(2)}%`;
-        miniChangeEl.className = `ticker-change-mini ${miniChangePct >= 0 ? 'text-up' : 'text-down'}`;
+        if (miniChangeEl) {
+            miniChangeEl.innerText = `${miniChangePct >= 0 ? '+' : ''}${miniChangePct.toFixed(2)}%`;
+            miniChangeEl.className = `ticker-change-mini ${miniChangePct >= 0 ? 'text-up' : 'text-down'}`;
+        }
     });  
     // Analyze indicators
     const analysis = analyzeTechnicals(currentTicker);
