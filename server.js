@@ -143,13 +143,15 @@ const server = http.createServer((req, res) => {
     else if (pathname === '/api/optimize') {
         const { exec } = require('child_process');
         const jsonPath = path.join(__dirname, 'optimization_results.json');
+        const isWindows = process.platform === 'win32';
+        const pythonCmd = isWindows ? 'python' : 'python3';
         
         // Read existing JSON results file and return immediately to prevent browser timeouts
         fs.readFile(jsonPath, 'utf8', (err, jsonContent) => {
             if (err) {
                 // If it doesn't exist, we must run it once to create it
-                console.log('[AlphaRadar Server] No existing results JSON. Running quant_optimizer.py first time...');
-                exec('python quant_optimizer.py', { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+                console.log(`[AlphaRadar Server] No existing results JSON. Running ${pythonCmd} quant_optimizer.py first time...`);
+                exec(`${pythonCmd} quant_optimizer.py`, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
                     if (error) {
                         console.error(`[AlphaRadar Server] Python execution error: ${error.message}`);
                         res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -174,8 +176,8 @@ const server = http.createServer((req, res) => {
                 res.end(jsonContent);
                 
                 // Trigger background update asynchronously
-                console.log('[AlphaRadar Server] Triggering background quant_optimizer.py update...');
-                exec('python quant_optimizer.py', { maxBuffer: 1024 * 1024 * 10 }, (bgError) => {
+                console.log(`[AlphaRadar Server] Triggering background ${pythonCmd} quant_optimizer.py update...`);
+                exec(`${pythonCmd} quant_optimizer.py`, { maxBuffer: 1024 * 1024 * 10 }, (bgError) => {
                     if (bgError) {
                         console.error(`[AlphaRadar Server] Asynchronous background update failed: ${bgError.message}`);
                     } else {

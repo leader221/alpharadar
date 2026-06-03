@@ -281,9 +281,11 @@ function injectTickerTab(key, meta) {
     // Check if tab already exists
     if (document.querySelector(`.nav-tab[data-ticker="${key}"]`)) return;
     
-    const btn = document.createElement('button');
+    const btn = document.createElement('div');
     btn.className = 'nav-tab';
     btn.setAttribute('data-ticker', key);
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('tabindex', '0');
     
     const displaySymbol = meta.symbol.replace('.KS', '').replace('.KQ', '');
     const badgeClass = key.toLowerCase().replace('.', '-');
@@ -298,13 +300,31 @@ function injectTickerTab(key, meta) {
         <span class="btn-delete-tab" data-ticker="${key}">&times;</span>
     `;
     
-    btn.addEventListener('click', (e) => {
+    const selectTab = () => {
         document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
-        
-        const btnNode = e.currentTarget;
-        btnNode.classList.add('active');
-        currentTicker = btnNode.getAttribute('data-ticker');
+        btn.classList.add('active');
+        currentTicker = key;
         updateDashboardUI();
+        
+        // Scroll to dashboard on mobile devices for immediate visual feedback
+        if (window.innerWidth <= 768) {
+            const mainHeader = document.querySelector('.main-header');
+            if (mainHeader) {
+                mainHeader.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    };
+    
+    btn.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-delete-tab')) return;
+        selectTab();
+    });
+    
+    btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectTab();
+        }
     });
     
     const delBtn = btn.querySelector('.btn-delete-tab');
@@ -819,17 +839,7 @@ function updateStockChart(ticker, days) {
     
     const ctx = document.getElementById('mainStockChart').getContext('2d');
     
-    if (stockChart) {
-        stockChart.destroy();
-    }
-    
-    // Create modern gradients for chart aesthetic
-    const priceGradient = ctx.createLinearGradient(0, 0, 0, 300);
-    priceGradient.addColorStop(0, 'rgba(0, 82, 255, 0.22)');
-    priceGradient.addColorStop(1, 'rgba(0, 82, 255, 0.0)');
-    
     // Colors depending on ticker type
-    const badgeClass = tickerMetadata[ticker].symbol.toLowerCase();
     let themeColor = 'rgba(0, 82, 255, 1)';
     if (ticker === 'SPY') themeColor = 'rgba(255, 92, 0, 1)';
     if (ticker === 'SCHD') themeColor = 'rgba(16, 185, 129, 1)';
@@ -840,6 +850,52 @@ function updateStockChart(ticker, days) {
     if (ticker === 'HANA') themeColor = 'rgba(0, 135, 122, 1)';
     if (ticker === 'GOOGL') themeColor = 'rgba(66, 133, 244, 1)';
     if (ticker === 'AMZN') themeColor = 'rgba(255, 153, 0, 1)';
+    
+    // Create modern gradients for chart aesthetic
+    const priceGradient = ctx.createLinearGradient(0, 0, 0, 300);
+    priceGradient.addColorStop(0, themeColor.replace('1)', '0.22)'));
+    priceGradient.addColorStop(1, themeColor.replace('1)', '0.0)'));
+    
+    if (stockChart) {
+        // Reuse existing chart - update labels, datasets, and settings dynamically to prevent mobile dimensions bugs
+        stockChart.data.labels = labels;
+        stockChart.data.datasets[0].label = '종가 (Close Price)';
+        stockChart.data.datasets[0].data = prices;
+        stockChart.data.datasets[0].borderColor = themeColor;
+        stockChart.data.datasets[0].pointHoverBackgroundColor = themeColor;
+        stockChart.data.datasets[0].backgroundColor = priceGradient;
+        
+        stockChart.data.datasets[1].data = sma20;
+        stockChart.data.datasets[2].data = sma50;
+        stockChart.data.datasets[3].data = sma200;
+        
+        stockChart.data.datasets[4].data = volumes;
+        
+        stockChart.options.scales.y.ticks.callback = function(value) {
+            const meta = tickerMetadata[ticker];
+            if (meta.currency === 'KRW') {
+                return '₩' + Math.round(value).toLocaleString();
+            }
+            return '$' + value.toFixed(1);
+        };
+        stockChart.options.scales.yVolume.max = Math.max(...volumes) * 3;
+        
+        stockChart.options.plugins.tooltip.callbacks.label = function(context) {
+            let label = context.dataset.label || '';
+            if (label) {
+                label += ': ';
+            }
+            if (context.dataset.type === 'bar') {
+                label += parseInt(context.raw).toLocaleString();
+            } else {
+                label += formatMoney(parseFloat(context.raw), tickerMetadata[ticker].currency);
+            }
+            return label;
+        };
+        
+        stockChart.update();
+        return;
+    }
     
     stockChart = new Chart(ctx, {
         type: 'line',
@@ -1904,12 +1960,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             
-            item.addEventListener('click', () => {
+            const selectItem = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 addTickerFromSearch(symbol, quote);
                 searchResults.classList.add('hidden');
                 searchInput.value = '';
                 searchClearBtn.classList.add('hidden');
-            });
+            };
+            
+            item.addEventListener('click', selectItem);
+            item.addEventListener('touchstart', selectItem, { passive: false });
+            item.addEventListener('mousedown', selectItem);
             
             searchResults.appendChild(item);
         });
